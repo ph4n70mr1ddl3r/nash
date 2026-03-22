@@ -687,9 +687,15 @@ impl CFRSolver {
         let mut deck = Deck::new();
         deck.shuffle(&mut rng);
 
-        let hole_sb = [deck.deal_one().unwrap(), deck.deal_one().unwrap()];
-        let hole_bb = [deck.deal_one().unwrap(), deck.deal_one().unwrap()];
-        let board: Vec<Card> = deck.deal(5).into_iter().collect();
+        let hole_sb = [
+            deck.deal_one().expect("deck should have 52 cards"),
+            deck.deal_one().expect("deck should have 51 cards"),
+        ];
+        let hole_bb = [
+            deck.deal_one().expect("deck should have 50 cards"),
+            deck.deal_one().expect("deck should have 49 cards"),
+        ];
+        let board: Vec<Card> = deck.deal(5);
         let hands = [hole_sb, hole_bb];
 
         let state = GameState::new(self.config.clone());
@@ -732,7 +738,6 @@ impl CFRSolver {
                             1.0,
                             1.0,
                             iter_weight,
-                            &config,
                         );
                     }
                 }
@@ -827,7 +832,6 @@ impl CFRSolver {
         pi_o: f64,
         pi_neg_o: f64,
         iter_weight: f64,
-        _config: &GameConfig,
     ) -> f64 {
         if state.is_terminal() {
             return Self::get_utility_impl(state, hands, board, player);
@@ -866,7 +870,6 @@ impl CFRSolver {
                     pi_o * strat[i],
                     pi_neg_o,
                     iter_weight,
-                    _config,
                 )
             } else {
                 Self::cfr_traversal_static(
@@ -878,7 +881,6 @@ impl CFRSolver {
                     pi_o,
                     pi_neg_o * strat[i],
                     iter_weight,
-                    _config,
                 )
             };
 
@@ -905,30 +907,7 @@ impl CFRSolver {
         board: &[Card],
         player: Player,
     ) -> f64 {
-        if state.is_fold() {
-            let winner = state.winner().unwrap();
-            let player_committed = state.committed[player.index()] as f64;
-            return if winner == player {
-                state.pot as f64 - player_committed
-            } else {
-                -player_committed
-            };
-        }
-
-        let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
-        let hole = &hands[player.index()];
-        let opp_index = 1 - player.index();
-        let opp_hole = &hands[opp_index];
-        let player_committed = state.committed[player.index()] as f64;
-
-        let hand = Hand::evaluate(hole, &board_set.to_vec());
-        let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
-
-        match hand.cmp(&opp_hand) {
-            std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
-            std::cmp::Ordering::Less => -player_committed,
-            std::cmp::Ordering::Equal => 0.0,
-        }
+        Self::get_utility_impl(state, hands, board, player)
     }
 
     fn estimate_exploitability(&self) -> f64 {

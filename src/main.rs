@@ -1,14 +1,15 @@
 use dashmap::DashMap;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufReader, BufWriter};
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{info, warn};
 
 const NUM_PLAYERS: usize = 2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Player {
     SB,
     BB,
@@ -23,7 +24,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Street {
     Preflop,
     Flop,
@@ -42,7 +43,7 @@ impl Street {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Card {
     rank: u8,
     suit: u8,
@@ -60,7 +61,7 @@ impl Card {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardSet {
     cards: Vec<Card>,
 }
@@ -118,7 +119,7 @@ impl Deck {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Action {
     Fold,
     Check,
@@ -269,7 +270,7 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InfoSet {
     player: Player,
     street: Street,
@@ -294,44 +295,185 @@ impl InfoSet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hand {
     rank: u32,
 }
 
 impl Hand {
     fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        let mut all_cards: Vec<Card> = hole.iter().copied().chain(board.iter().copied()).collect();
+        all_cards.sort_by(|a, b| b.rank.cmp(&a.rank));
 
-        let mut hasher = DefaultHasher::new();
-        for card in hole.iter().chain(board.iter()) {
-            card.rank.hash(&mut hasher);
-            card.suit.hash(&mut hasher);
+        let rank = Self::evaluate_hand_rank(&all_cards);
+        Hand { rank }
+    }
+
+    fn evaluate_hand_rank(cards: &[Card]) -> u32 {
+        if cards.len() < 5 {
+            return Self::high_card_rank(cards);
         }
-        Hand {
-            rank: hasher.finish() as u32 % 7462,
+
+        let flush = Self::find_flush(cards);
+        let straight = Self::find_straight(cards);
+
+        if let (Some(flush_cards), Some(straight_high)) = (&flush, straight) {
+            if Self::is_straight_flush(flush_cards, straight_high) {
+                if straight_high == 14 {
+                    return Self::hand_rank(9, 0, 0);
+                }
+                return Self::hand_rank(8, straight_high, 0);
+            }
+        }
+
+        let ranks: Vec<u8> = cards.iter().map(|c| c.rank).collect();
+        let counts = Self::count_ranks(&ranks);
+
+        if let Some(rank) = Self::find_four_of_a_kind(&counts) {
+            return Self::hand_rank(7, rank, 0);
+        }
+
+        if let Some((trips, pair)) = Self::find_full_house(&counts) {
+            return Self::hand_rank(6, trips, pair);
+        }
+
+        if let Some(flush_cards) = flush {
+            return Self::hand_rank(5, flush_cards[0].rank, 0);
+        }
+
+        if let Some(high) = straight {
+            return Self::hand_rank(4, high, 0);
+        }
+
+        if let Some(rank) = Self::find_three_of_a_kind(&counts) {
+            return Self::hand_rank(3, rank, 0);
+        }
+
+        if let Some((high, low)) = Self::find_two_pair(&counts) {
+            return Self::hand_rank(2, high, low);
+        }
+
+        if let Some(rank) = Self::find_pair(&counts) {
+            return Self::hand_rank(1, rank, 0);
+        }
+
+        Self::hand_rank(0, cards[0].rank, 0)
+    }
+
+    fn hand_rank(hand_type: u32, primary: u8, secondary: u8) -> u32 {
+        (hand_type * 1_000_000) + (primary as u32 * 100) + (secondary as u32)
+    }
+
+    fn high_card_rank(cards: &[Card]) -> u32 {
+        let mut rank = 0u32;
+        for (i, card) in cards.iter().enumerate() {
+            rank += (card.rank as u32) << (16 - i * 4);
+        }
+        rank
+    }
+
+    fn find_flush(cards: &[Card]) -> Option<Vec<Card>> {
+        let mut suit_counts = [0usize; 4];
+        for card in cards {
+            suit_counts[card.suit as usize] += 1;
+        }
+        for (suit, &count) in suit_counts.iter().enumerate() {
+            if count >= 5 {
+                let flush_cards: Vec<Card> = cards
+                    .iter()
+                    .filter(|c| c.suit as usize == suit)
+                    .copied()
+                    .collect();
+                return Some(flush_cards);
+            }
+        }
+        None
+    }
+
+    fn find_straight(cards: &[Card]) -> Option<u8> {
+        let mut unique_ranks: Vec<u8> = cards.iter().map(|c| c.rank).collect();
+        unique_ranks.sort_by(|a, b| b.cmp(a));
+        unique_ranks.dedup();
+
+        for window in unique_ranks.windows(5) {
+            if window[0] - window[4] == 4 {
+                return Some(window[0]);
+            }
+        }
+        if unique_ranks.contains(&14) && unique_ranks.contains(&5) {
+            for window in unique_ranks.windows(4) {
+                if window[0] == 5 && window[3] == 2 {
+                    return Some(5);
+                }
+            }
+        }
+        None
+    }
+
+    fn is_straight_flush(flush_cards: &[Card], straight_high: u8) -> bool {
+        Self::find_straight(flush_cards) == Some(straight_high)
+    }
+
+    fn count_ranks(ranks: &[u8]) -> [u8; 15] {
+        let mut counts = [0u8; 15];
+        for &rank in ranks {
+            counts[rank as usize] += 1;
+        }
+        counts
+    }
+
+    fn find_four_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
+        for (rank, &count) in counts.iter().enumerate() {
+            if count == 4 {
+                return Some(rank as u8);
+            }
+        }
+        None
+    }
+
+    fn find_full_house(counts: &[u8; 15]) -> Option<(u8, u8)> {
+        let mut trips = None;
+        let mut pair = None;
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count >= 3 && trips.is_none() {
+                trips = Some(rank as u8);
+            } else if count >= 2 && pair.is_none() {
+                pair = Some(rank as u8);
+            }
+        }
+        trips.zip(pair)
+    }
+
+    fn find_three_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count == 3 {
+                return Some(rank as u8);
+            }
+        }
+        None
+    }
+
+    fn find_two_pair(counts: &[u8; 15]) -> Option<(u8, u8)> {
+        let mut pairs: Vec<u8> = Vec::new();
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count == 2 {
+                pairs.push(rank as u8);
+            }
+        }
+        if pairs.len() >= 2 {
+            Some((pairs[0], pairs[1]))
+        } else {
+            None
         }
     }
-}
 
-impl Ord for Hand {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.rank.cmp(&other.rank)
-    }
-}
-
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Eq for Hand {}
-
-impl PartialEq for Hand {
-    fn eq(&self, other: &Self) -> bool {
-        self.rank == other.rank
+    fn find_pair(counts: &[u8; 15]) -> Option<u8> {
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count == 2 {
+                return Some(rank as u8);
+            }
+        }
+        None
     }
 }
 
@@ -356,7 +498,7 @@ pub struct StrategyStats {
     memory_mb: f64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StrategyEntry {
     regrets: Vec<f64>,
     strategy_sum: Vec<f64>,
@@ -415,7 +557,10 @@ impl Strategy {
 
     fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
-        let memory_mb = (info_sets * std::mem::size_of::<StrategyEntry>()) as f64 / 1_000_000.0;
+        let avg_actions_per_entry = 5;
+        let entry_overhead = std::mem::size_of::<StrategyEntry>();
+        let vec_overhead = avg_actions_per_entry * std::mem::size_of::<f64>() * 2;
+        let memory_mb = (info_sets * (entry_overhead + vec_overhead)) as f64 / 1_000_000.0;
         StrategyStats {
             info_sets,
             memory_mb,
@@ -425,8 +570,24 @@ impl Strategy {
     fn save(&self, path: &str) -> std::io::Result<()> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
-        bincode::serialize_into(writer, &self.entries.len())
-            .map_err(|e| std::io::Error::other(e.to_string()))
+        let entries: Vec<_> = self
+            .entries
+            .iter()
+            .map(|e| (e.key().clone(), e.value().clone()))
+            .collect();
+        bincode::serialize_into(writer, &entries).map_err(|e| std::io::Error::other(e.to_string()))
+    }
+
+    #[allow(dead_code)]
+    fn load(&self, path: &str) -> std::io::Result<()> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        let entries: Vec<(InfoSet, StrategyEntry)> =
+            bincode::deserialize_from(reader).map_err(|e| std::io::Error::other(e.to_string()))?;
+        for (key, value) in entries {
+            self.entries.insert(key, value);
+        }
+        Ok(())
     }
 
     fn update(
@@ -579,6 +740,7 @@ impl CFRSolver {
         });
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn cfr_traversal(
         &self,
         state: &GameState,
@@ -590,10 +752,6 @@ impl CFRSolver {
         iter_weight: f64,
     ) -> f64 {
         if state.is_terminal() {
-            return self.get_utility(state, hands, board, player);
-        }
-
-        if state.is_fold() {
             return self.get_utility(state, hands, board, player);
         }
 
@@ -659,6 +817,7 @@ impl CFRSolver {
         node_value
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
         strategy: &Arc<Strategy>,
         state: &GameState,
@@ -668,21 +827,17 @@ impl CFRSolver {
         pi_o: f64,
         pi_neg_o: f64,
         iter_weight: f64,
-        config: &GameConfig,
+        _config: &GameConfig,
     ) -> f64 {
         if state.is_terminal() {
-            return get_utility_static(state, hands, board, player, config);
-        }
-
-        if state.is_fold() {
-            return get_utility_static(state, hands, board, player, config);
+            return Self::get_utility_impl(state, hands, board, player);
         }
 
         let current = state.current_player;
         let actions = state.legal_actions();
 
         if actions.is_empty() {
-            return get_utility_static(state, hands, board, player, config);
+            return Self::get_utility_impl(state, hands, board, player);
         }
 
         let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
@@ -711,7 +866,7 @@ impl CFRSolver {
                     pi_o * strat[i],
                     pi_neg_o,
                     iter_weight,
-                    config,
+                    _config,
                 )
             } else {
                 Self::cfr_traversal_static(
@@ -723,7 +878,7 @@ impl CFRSolver {
                     pi_o,
                     pi_neg_o * strat[i],
                     iter_weight,
-                    config,
+                    _config,
                 )
             };
 
@@ -779,38 +934,37 @@ impl CFRSolver {
     fn estimate_exploitability(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)
     }
-}
 
-fn get_utility_static(
-    state: &GameState,
-    hands: &[[Card; 2]],
-    board: &[Card],
-    player: Player,
-    _config: &GameConfig,
-) -> f64 {
-    if state.is_fold() {
-        let winner = state.winner().unwrap();
+    fn get_utility_impl(
+        state: &GameState,
+        hands: &[[Card; 2]],
+        board: &[Card],
+        player: Player,
+    ) -> f64 {
+        if state.is_fold() {
+            let winner = state.winner().unwrap();
+            let player_committed = state.committed[player.index()] as f64;
+            return if winner == player {
+                state.pot as f64 - player_committed
+            } else {
+                -player_committed
+            };
+        }
+
+        let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
+        let hole = &hands[player.index()];
+        let opp_index = 1 - player.index();
+        let opp_hole = &hands[opp_index];
         let player_committed = state.committed[player.index()] as f64;
-        return if winner == player {
-            state.pot as f64 - player_committed
-        } else {
-            -player_committed
-        };
-    }
 
-    let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
-    let hole = &hands[player.index()];
-    let opp_index = 1 - player.index();
-    let opp_hole = &hands[opp_index];
-    let player_committed = state.committed[player.index()] as f64;
+        let hand = Hand::evaluate(hole, &board_set.to_vec());
+        let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
 
-    let hand = Hand::evaluate(hole, &board_set.to_vec());
-    let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
-
-    match hand.cmp(&opp_hand) {
-        std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
-        std::cmp::Ordering::Less => -player_committed,
-        std::cmp::Ordering::Equal => 0.0,
+        match hand.cmp(&opp_hand) {
+            std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
+            std::cmp::Ordering::Less => -player_committed,
+            std::cmp::Ordering::Equal => 0.0,
+        }
     }
 }
 

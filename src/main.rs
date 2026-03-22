@@ -244,18 +244,20 @@ impl GameState {
                 new_state.pot += to_call;
             }
             Action::Bet(amount) => {
-                new_state.committed[self.current_player.index()] += amount;
+                new_state.committed[new_state.current_player.index()] += amount;
                 new_state.pot += amount;
-                new_state.last_bet = new_state.committed[self.current_player.index()];
+                new_state.last_bet = new_state.committed[new_state.current_player.index()];
+                new_state.min_raise = amount;
             }
             Action::Raise(amount) => {
                 let to_call = self
                     .last_bet
                     .saturating_sub(self.committed[self.current_player.index()]);
                 let total = to_call + amount;
-                new_state.committed[self.current_player.index()] += total;
+                new_state.committed[new_state.current_player.index()] += total;
                 new_state.pot += total;
-                new_state.last_bet = new_state.committed[self.current_player.index()];
+                new_state.last_bet = new_state.committed[new_state.current_player.index()];
+                new_state.min_raise = amount;
             }
             Action::AllIn => {
                 let remaining = self.config.initial_stacks[self.current_player.index()]
@@ -580,10 +582,13 @@ impl Strategy {
 
     fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
-        let avg_actions_per_entry = 5;
-        let entry_overhead = std::mem::size_of::<StrategyEntry>();
-        let vec_overhead = avg_actions_per_entry * std::mem::size_of::<f64>() * 2;
-        let memory_mb = (info_sets * (entry_overhead + vec_overhead)) as f64 / 1_000_000.0;
+        let mut total_memory = 0usize;
+        for entry in self.entries.iter() {
+            total_memory += std::mem::size_of::<StrategyEntry>();
+            total_memory += entry.value().regrets.capacity() * std::mem::size_of::<f64>();
+            total_memory += entry.value().strategy_sum.capacity() * std::mem::size_of::<f64>();
+        }
+        let memory_mb = total_memory as f64 / 1_000_000.0;
         StrategyStats {
             info_sets,
             memory_mb,
@@ -602,15 +607,16 @@ impl Strategy {
     }
 
     #[allow(dead_code)]
-    fn load(&self, path: &str) -> std::io::Result<()> {
+    fn load(path: &str) -> std::io::Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let entries: Vec<(InfoSet, StrategyEntry)> =
             bincode::deserialize_from(reader).map_err(|e| std::io::Error::other(e.to_string()))?;
+        let strategy = Strategy::new();
         for (key, value) in entries {
-            self.entries.insert(key, value);
+            strategy.entries.insert(key, value);
         }
-        Ok(())
+        Ok(strategy)
     }
 
     fn update(
@@ -873,6 +879,7 @@ impl CFRSolver {
         node_value
     }
 
+    /// Placeholder: returns inverse iteration count instead of true exploitability.
     fn estimate_exploitability(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)
     }

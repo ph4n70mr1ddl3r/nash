@@ -191,24 +191,31 @@ impl GameState {
         let mut actions = Vec::new();
         actions.push(Action::Fold);
 
+        let remaining = self.config.initial_stacks[self.current_player.index()]
+            .saturating_sub(self.committed[self.current_player.index()]);
+
         let to_call = self
             .last_bet
             .saturating_sub(self.committed[self.current_player.index()]);
         if to_call == 0 {
             actions.push(Action::Check);
-        } else {
+        } else if to_call <= remaining {
             actions.push(Action::Call);
         }
 
-        let bet_size = (self.pot as f64 * 0.5) as u64;
-        if bet_size > 0 {
+        let bet_size = ((self.pot as f64 * 0.5) as u64).min(remaining);
+        if bet_size > 0 && bet_size <= remaining {
             actions.push(Action::Bet(bet_size));
         }
 
-        let raise_size = self.last_bet + self.min_raise;
-        actions.push(Action::Raise(raise_size));
+        let raise_size = self.min_raise.min(remaining.saturating_sub(to_call));
+        if raise_size > 0 && to_call + raise_size <= remaining {
+            actions.push(Action::Raise(raise_size));
+        }
 
-        actions.push(Action::AllIn);
+        if remaining > 0 {
+            actions.push(Action::AllIn);
+        }
         actions
     }
 
@@ -239,9 +246,10 @@ impl GameState {
                 new_state.last_bet = new_state.committed[self.current_player.index()];
             }
             Action::AllIn => {
-                let all_in_amount = self.config.initial_stacks[self.current_player.index()];
-                new_state.committed[self.current_player.index()] += all_in_amount;
-                new_state.pot += all_in_amount;
+                let remaining = self.config.initial_stacks[self.current_player.index()]
+                    .saturating_sub(self.committed[self.current_player.index()]);
+                new_state.committed[self.current_player.index()] += remaining;
+                new_state.pot += remaining;
                 new_state.last_bet = new_state.committed[self.current_player.index()];
             }
         }
@@ -485,6 +493,7 @@ pub struct GameConfig {
     pub min_bet: u64,
 }
 
+#[derive(Debug, Clone)]
 pub struct CFRConfig {
     pub num_iterations: usize,
     pub log_interval: usize,
@@ -493,6 +502,7 @@ pub struct CFRConfig {
     pub use_chance_sampling: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct StrategyStats {
     info_sets: usize,
     memory_mb: f64,
@@ -512,23 +522,24 @@ impl StrategyEntry {
         }
     }
 
-    fn get_strategy(&self) -> Vec<f64> {
-        let mut strat = Vec::with_capacity(self.regrets.len());
+    fn get_strategy(&self, out: &mut [f64]) {
+        let len = out.len().min(self.regrets.len());
         let mut sum = 0.0;
-        for &r in &self.regrets {
-            let s = r.max(0.0);
-            strat.push(s);
+        for i in 0..len {
+            let s = self.regrets[i].max(0.0);
+            out[i] = s;
             sum += s;
         }
         if sum > 0.0 {
-            for s in &mut strat {
+            for s in &mut out[..len] {
                 *s /= sum;
             }
         } else {
-            let uniform = 1.0 / strat.len() as f64;
-            strat.fill(uniform);
+            let uniform = 1.0 / len as f64;
+            for s in &mut out[..len] {
+                *s = uniform;
+            }
         }
-        strat
     }
 }
 
@@ -776,9 +787,10 @@ impl CFRSolver {
         }
 
         let entry = self.strategy.get_or_create(&info_set, actions.len());
-        let strat = entry.get_strategy();
+        let mut strat = [0.0f64; 6];
+        entry.get_strategy(&mut strat[..actions.len()]);
 
-        let mut action_values = vec![0.0; actions.len()];
+        let mut action_values = [0.0f64; 6];
         let mut node_value = 0.0;
         for (i, &action) in actions.iter().enumerate() {
             let new_state = state.apply_action(action);
@@ -810,13 +822,18 @@ impl CFRSolver {
         }
 
         if current == player {
-            let mut regrets = vec![0.0; actions.len()];
-            for (i, &av) in action_values.iter().enumerate() {
+            let mut regrets = [0.0f64; 6];
+            for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
 
-            self.strategy
-                .update(&info_set, &regrets, &strat, pi_o, iter_weight);
+            self.strategy.update(
+                &info_set,
+                &regrets[..actions.len()],
+                &strat[..actions.len()],
+                pi_o,
+                iter_weight,
+            );
         }
 
         node_value
@@ -853,9 +870,10 @@ impl CFRSolver {
         }
 
         let entry = strategy.get_or_create(&info_set, actions.len());
-        let strat = entry.get_strategy();
+        let mut strat = [0.0f64; 6];
+        entry.get_strategy(&mut strat[..actions.len()]);
 
-        let mut action_values = vec![0.0; actions.len()];
+        let mut action_values = [0.0f64; 6];
         let mut node_value = 0.0;
         for (i, &action) in actions.iter().enumerate() {
             let new_state = state.apply_action(action);
@@ -889,12 +907,18 @@ impl CFRSolver {
         }
 
         if current == player {
-            let mut regrets = vec![0.0; actions.len()];
-            for (i, &av) in action_values.iter().enumerate() {
+            let mut regrets = [0.0f64; 6];
+            for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
 
-            strategy.update(&info_set, &regrets, &strat, pi_o, iter_weight);
+            strategy.update(
+                &info_set,
+                &regrets[..actions.len()],
+                &strat[..actions.len()],
+                pi_o,
+                iter_weight,
+            );
         }
 
         node_value
@@ -942,7 +966,7 @@ impl CFRSolver {
         match hand.cmp(&opp_hand) {
             std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
             std::cmp::Ordering::Less => -player_committed,
-            std::cmp::Ordering::Equal => 0.0,
+            std::cmp::Ordering::Equal => (state.pot as f64 / 2.0) - player_committed,
         }
     }
 }

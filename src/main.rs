@@ -155,9 +155,7 @@ impl GameState {
     }
 
     fn is_terminal(&self) -> bool {
-        self.street == Street::River
-            && self.history.len() >= 2
-            && self.last_action_is_check_or_call()
+        self.is_fold() || self.is_showdown()
     }
 
     fn is_fold(&self) -> bool {
@@ -166,10 +164,18 @@ impl GameState {
             .is_some_and(|a| matches!(a, Action::Fold))
     }
 
-    fn last_action_is_check_or_call(&self) -> bool {
-        self.history
-            .last()
-            .is_some_and(|a| matches!(a, Action::Check | Action::Call))
+    fn is_showdown(&self) -> bool {
+        self.street == Street::River && self.betting_round_closed()
+    }
+
+    fn betting_round_closed(&self) -> bool {
+        if self.history.len() < 2 {
+            return false;
+        }
+        let len = self.history.len();
+        let last = &self.history[len - 1];
+        let prev = &self.history[len - 2];
+        matches!(last, Action::Check | Action::Call) && matches!(prev, Action::Check | Action::Call)
     }
 
     fn winner(&self) -> Option<Player> {
@@ -240,10 +246,25 @@ impl GameState {
         }
 
         new_state.history.push(action);
-        new_state.current_player = match self.current_player {
-            Player::SB => Player::BB,
-            Player::BB => Player::SB,
-        };
+
+        if !new_state.is_fold()
+            && new_state.betting_round_closed()
+            && new_state.street != Street::River
+        {
+            new_state.street = match new_state.street {
+                Street::Preflop => Street::Flop,
+                Street::Flop => Street::Turn,
+                Street::Turn => Street::River,
+                Street::River => Street::River,
+            };
+            new_state.last_bet = 0;
+            new_state.current_player = Player::SB;
+        } else {
+            new_state.current_player = match self.current_player {
+                Player::SB => Player::BB,
+                Player::BB => Player::SB,
+            };
+        }
         new_state
     }
 }
@@ -279,9 +300,17 @@ pub struct Hand {
 }
 
 impl Hand {
-    fn evaluate(_hole: &[Card; 2], _board: &[Card]) -> Self {
+    fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        for card in hole.iter().chain(board.iter()) {
+            card.rank.hash(&mut hasher);
+            card.suit.hash(&mut hasher);
+        }
         Hand {
-            rank: rand::random::<u32>() % 7462,
+            rank: hasher.finish() as u32 % 7462,
         }
     }
 }
@@ -312,8 +341,6 @@ pub struct GameConfig {
     pub small_blind: u64,
     pub big_blind: u64,
     pub min_bet: u64,
-    pub bet_abstraction: Vec<f64>,
-    pub raise_abstraction: Vec<f64>,
 }
 
 pub struct CFRConfig {
@@ -322,7 +349,6 @@ pub struct CFRConfig {
     pub save_interval: usize,
     pub save_path: Option<String>,
     pub use_chance_sampling: bool,
-    pub prune_negative: bool,
 }
 
 pub struct StrategyStats {
@@ -366,26 +392,25 @@ impl StrategyEntry {
 
 pub struct Strategy {
     entries: DashMap<InfoSet, StrategyEntry>,
-    config: GameConfig,
 }
 
 impl Strategy {
-    fn new(config: GameConfig) -> Self {
+    fn new() -> Self {
         Strategy {
             entries: DashMap::new(),
-            config,
         }
     }
 
     fn get_or_create(&self, info_set: &InfoSet, num_actions: usize) -> StrategyEntry {
-        self.entries
-            .get(info_set)
-            .map(|e| e.clone())
-            .unwrap_or_else(|| {
+        use dashmap::mapref::entry::Entry;
+        match self.entries.entry(info_set.clone()) {
+            Entry::Occupied(e) => e.get().clone(),
+            Entry::Vacant(e) => {
                 let entry = StrategyEntry::new(num_actions);
-                self.entries.insert(info_set.clone(), entry.clone());
+                e.insert(entry.clone());
                 entry
-            })
+            }
+        }
     }
 
     fn stats(&self) -> StrategyStats {
@@ -404,11 +429,23 @@ impl Strategy {
             .map_err(|e| std::io::Error::other(e.to_string()))
     }
 
-    fn update(&self, info_set: &InfoSet, regrets: &[f64], iter_weight: f64) {
+    fn update(
+        &self,
+        info_set: &InfoSet,
+        regrets: &[f64],
+        strategy: &[f64],
+        pi_o: f64,
+        iter_weight: f64,
+    ) {
         if let Some(mut entry) = self.entries.get_mut(info_set) {
             for (i, &r) in regrets.iter().enumerate() {
                 if i < entry.regrets.len() {
                     entry.regrets[i] += r * iter_weight;
+                }
+            }
+            for (i, &s) in strategy.iter().enumerate() {
+                if i < entry.strategy_sum.len() {
+                    entry.strategy_sum[i] += pi_o * s * iter_weight;
                 }
             }
         }
@@ -424,7 +461,7 @@ pub struct CFRSolver {
 
 impl CFRSolver {
     pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Self {
-        let strategy = Arc::new(Strategy::new(game_config.clone()));
+        let strategy = Arc::new(Strategy::new());
         CFRSolver {
             config: game_config,
             cfr_config,
@@ -590,7 +627,7 @@ impl CFRSolver {
                     board,
                     player,
                     pi_o * strat[i],
-                    pi_neg_o * strat[i],
+                    pi_neg_o,
                     iter_weight,
                 )
             } else {
@@ -615,7 +652,8 @@ impl CFRSolver {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
 
-            self.strategy.update(&info_set, &regrets, iter_weight);
+            self.strategy
+                .update(&info_set, &regrets, &strat, pi_o, iter_weight);
         }
 
         node_value
@@ -671,7 +709,7 @@ impl CFRSolver {
                     board,
                     player,
                     pi_o * strat[i],
-                    pi_neg_o * strat[i],
+                    pi_neg_o,
                     iter_weight,
                     config,
                 )
@@ -699,7 +737,7 @@ impl CFRSolver {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
 
-            strategy.update(&info_set, &regrets, iter_weight);
+            strategy.update(&info_set, &regrets, &strat, pi_o, iter_weight);
         }
 
         node_value
@@ -714,10 +752,11 @@ impl CFRSolver {
     ) -> f64 {
         if state.is_fold() {
             let winner = state.winner().unwrap();
+            let player_committed = state.committed[player.index()] as f64;
             return if winner == player {
-                state.pot as f64
+                state.pot as f64 - player_committed
             } else {
-                -(state.pot as f64)
+                -player_committed
             };
         }
 
@@ -725,13 +764,14 @@ impl CFRSolver {
         let hole = &hands[player.index()];
         let opp_index = 1 - player.index();
         let opp_hole = &hands[opp_index];
+        let player_committed = state.committed[player.index()] as f64;
 
         let hand = Hand::evaluate(hole, &board_set.to_vec());
         let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
 
         match hand.cmp(&opp_hand) {
-            std::cmp::Ordering::Greater => state.pot as f64,
-            std::cmp::Ordering::Less => -(state.pot as f64),
+            std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
+            std::cmp::Ordering::Less => -player_committed,
             std::cmp::Ordering::Equal => 0.0,
         }
     }
@@ -750,10 +790,11 @@ fn get_utility_static(
 ) -> f64 {
     if state.is_fold() {
         let winner = state.winner().unwrap();
+        let player_committed = state.committed[player.index()] as f64;
         return if winner == player {
-            state.pot as f64
+            state.pot as f64 - player_committed
         } else {
-            -(state.pot as f64)
+            -player_committed
         };
     }
 
@@ -761,13 +802,14 @@ fn get_utility_static(
     let hole = &hands[player.index()];
     let opp_index = 1 - player.index();
     let opp_hole = &hands[opp_index];
+    let player_committed = state.committed[player.index()] as f64;
 
     let hand = Hand::evaluate(hole, &board_set.to_vec());
     let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
 
     match hand.cmp(&opp_hand) {
-        std::cmp::Ordering::Greater => state.pot as f64,
-        std::cmp::Ordering::Less => -(state.pot as f64),
+        std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
+        std::cmp::Ordering::Less => -player_committed,
         std::cmp::Ordering::Equal => 0.0,
     }
 }
@@ -780,8 +822,6 @@ fn main() {
         small_blind: 1,
         big_blind: 2,
         min_bet: 2,
-        bet_abstraction: vec![0.5, 1.0],
-        raise_abstraction: vec![2.0, 3.0],
     };
 
     let cfr_config = CFRConfig {
@@ -790,7 +830,6 @@ fn main() {
         save_interval: 50,
         save_path: Some("strategy.bin".to_string()),
         use_chance_sampling: true,
-        prune_negative: true,
     };
 
     let mut solver = CFRSolver::new(game_config, cfr_config);

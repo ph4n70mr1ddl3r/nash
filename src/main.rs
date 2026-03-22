@@ -163,13 +163,13 @@ impl GameState {
     fn is_fold(&self) -> bool {
         self.history
             .last()
-            .map_or(false, |a| matches!(a, Action::Fold))
+            .is_some_and(|a| matches!(a, Action::Fold))
     }
 
     fn last_action_is_check_or_call(&self) -> bool {
         self.history
             .last()
-            .map_or(false, |a| matches!(a, Action::Check | Action::Call))
+            .is_some_and(|a| matches!(a, Action::Check | Action::Call))
     }
 
     fn winner(&self) -> Option<Player> {
@@ -232,7 +232,7 @@ impl GameState {
                 new_state.last_bet = new_state.committed[self.current_player.index()];
             }
             Action::AllIn => {
-                let all_in_amount = 10000;
+                let all_in_amount = self.config.initial_stacks[self.current_player.index()];
                 new_state.committed[self.current_player.index()] += all_in_amount;
                 new_state.pot += all_in_amount;
                 new_state.last_bet = new_state.committed[self.current_player.index()];
@@ -358,9 +358,7 @@ impl StrategyEntry {
             }
         } else {
             let uniform = 1.0 / strat.len() as f64;
-            for s in &mut strat {
-                *s = uniform;
-            }
+            strat.fill(uniform);
         }
         strat
     }
@@ -403,10 +401,18 @@ impl Strategy {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         bincode::serialize_into(writer, &self.entries.len())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            .map_err(|e| std::io::Error::other(e.to_string()))
     }
 
-    fn update(&self, _info_set: &InfoSet, _regrets: &[f64], _iter_weight: f64) {}
+    fn update(&self, info_set: &InfoSet, regrets: &[f64], iter_weight: f64) {
+        if let Some(mut entry) = self.entries.get_mut(info_set) {
+            for (i, &r) in regrets.iter().enumerate() {
+                if i < entry.regrets.len() {
+                    entry.regrets[i] += r * iter_weight;
+                }
+            }
+        }
+    }
 }
 
 pub struct CFRSolver {
@@ -494,7 +500,7 @@ impl CFRSolver {
     }
 
     fn run_iteration_full(&self, iter_weight: f64) {
-        let all_cards: Vec<Card> = Card::all().to_vec();
+        let all_cards: Vec<Card> = Card::all();
         let num_cards = all_cards.len();
         let strategy = self.strategy.clone();
         let config = self.config.clone();
@@ -503,26 +509,33 @@ impl CFRSolver {
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {
-                        for m in (l + 1)..num_cards {
-                            let hole_sb = [all_cards[i], all_cards[j]];
-                            let hole_bb = [all_cards[k], all_cards[l]];
-                            let board = vec![all_cards[m]];
+                        let hole_sb = [all_cards[i], all_cards[j]];
+                        let hole_bb = [all_cards[k], all_cards[l]];
+                        let mut remaining: Vec<Card> = all_cards
+                            .iter()
+                            .copied()
+                            .filter(|&c| c.rank != all_cards[i].rank || c.suit != all_cards[i].suit)
+                            .filter(|&c| c.rank != all_cards[j].rank || c.suit != all_cards[j].suit)
+                            .filter(|&c| c.rank != all_cards[k].rank || c.suit != all_cards[k].suit)
+                            .filter(|&c| c.rank != all_cards[l].rank || c.suit != all_cards[l].suit)
+                            .collect();
 
-                            let hands = [hole_sb, hole_bb];
-                            let state = GameState::new(config.clone());
+                        let board: Vec<Card> = remaining.drain(..5).collect();
 
-                            Self::cfr_traversal_static(
-                                &strategy,
-                                &state,
-                                &hands,
-                                &board,
-                                Player::SB,
-                                1.0,
-                                1.0,
-                                iter_weight,
-                                &config,
-                            );
-                        }
+                        let hands = [hole_sb, hole_bb];
+                        let state = GameState::new(config.clone());
+
+                        Self::cfr_traversal_static(
+                            &strategy,
+                            &state,
+                            &hands,
+                            &board,
+                            Player::SB,
+                            1.0,
+                            1.0,
+                            iter_weight,
+                            &config,
+                        );
                     }
                 }
             }
@@ -564,11 +577,6 @@ impl CFRSolver {
 
         let entry = self.strategy.get_or_create(&info_set, actions.len());
         let strat = entry.get_strategy();
-
-        let strat_ref = &strat;
-        if self.cfr_config.prune_negative {
-            let _ = strat_ref;
-        }
 
         let mut action_values = vec![0.0; actions.len()];
         let mut node_value = 0.0;

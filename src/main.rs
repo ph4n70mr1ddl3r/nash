@@ -173,17 +173,29 @@ impl GameState {
         if self.history.len() < 2 {
             return false;
         }
-        let len = self.history.len();
-        let last = &self.history[len - 1];
-        let prev = &self.history[len - 2];
-        matches!(last, Action::Check | Action::Call) && matches!(prev, Action::Check | Action::Call)
+        let last = &self.history[self.history.len() - 1];
+        match last {
+            Action::Call => true,
+            Action::Check => {
+                let prev = &self.history[self.history.len() - 2];
+                matches!(prev, Action::Check)
+            }
+            _ => false,
+        }
     }
 
     fn winner(&self) -> Option<Player> {
         if let Some(Action::Fold) = self.history.last() {
-            Some(self.current_player)
+            Some(self.opponent())
         } else {
             None
+        }
+    }
+
+    fn opponent(&self) -> Player {
+        match self.current_player {
+            Player::SB => Player::BB,
+            Player::BB => Player::SB,
         }
     }
 
@@ -525,9 +537,9 @@ impl StrategyEntry {
     fn get_strategy(&self, out: &mut [f64]) {
         let len = out.len().min(self.regrets.len());
         let mut sum = 0.0;
-        for i in 0..len {
-            let s = self.regrets[i].max(0.0);
-            out[i] = s;
+        for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
+            let s = regret.max(0.0);
+            *out_val = s;
             sum += s;
         }
         if sum > 0.0 {
@@ -726,16 +738,13 @@ impl CFRSolver {
                     for l in (k + 1)..num_cards {
                         let hole_sb = [all_cards[i], all_cards[j]];
                         let hole_bb = [all_cards[k], all_cards[l]];
-                        let mut remaining: Vec<Card> = all_cards
+                        let excluded = [hole_sb[0], hole_sb[1], hole_bb[0], hole_bb[1]];
+                        let remaining: Vec<Card> = all_cards
                             .iter()
                             .copied()
-                            .filter(|&c| c.rank != all_cards[i].rank || c.suit != all_cards[i].suit)
-                            .filter(|&c| c.rank != all_cards[j].rank || c.suit != all_cards[j].suit)
-                            .filter(|&c| c.rank != all_cards[k].rank || c.suit != all_cards[k].suit)
-                            .filter(|&c| c.rank != all_cards[l].rank || c.suit != all_cards[l].suit)
+                            .filter(|c| !excluded.contains(c))
                             .collect();
-
-                        let board: Vec<Card> = remaining.drain(..5).collect();
+                        let board: Vec<Card> = remaining.into_iter().take(5).collect();
 
                         let hands = [hole_sb, hole_bb];
                         let state = GameState::new(config.clone());
@@ -767,76 +776,16 @@ impl CFRSolver {
         pi_neg_o: f64,
         iter_weight: f64,
     ) -> f64 {
-        if state.is_terminal() {
-            return self.get_utility(state, hands, board, player);
-        }
-
-        let current = state.current_player;
-        let actions = state.legal_actions();
-
-        if actions.is_empty() {
-            return self.get_utility(state, hands, board, player);
-        }
-
-        let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
-        let hole = &hands[current.index()];
-
-        let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
-        for action in &state.history {
-            info_set.add_action(action);
-        }
-
-        let entry = self.strategy.get_or_create(&info_set, actions.len());
-        let mut strat = [0.0f64; 6];
-        entry.get_strategy(&mut strat[..actions.len()]);
-
-        let mut action_values = [0.0f64; 6];
-        let mut node_value = 0.0;
-        for (i, &action) in actions.iter().enumerate() {
-            let new_state = state.apply_action(action);
-
-            let value = if current == player {
-                self.cfr_traversal(
-                    &new_state,
-                    hands,
-                    board,
-                    player,
-                    pi_o * strat[i],
-                    pi_neg_o,
-                    iter_weight,
-                )
-            } else {
-                self.cfr_traversal(
-                    &new_state,
-                    hands,
-                    board,
-                    player,
-                    pi_o,
-                    pi_neg_o * strat[i],
-                    iter_weight,
-                )
-            };
-
-            action_values[i] = value;
-            node_value += strat[i] * value;
-        }
-
-        if current == player {
-            let mut regrets = [0.0f64; 6];
-            for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
-                regrets[i] = pi_neg_o * (av - node_value);
-            }
-
-            self.strategy.update(
-                &info_set,
-                &regrets[..actions.len()],
-                &strat[..actions.len()],
-                pi_o,
-                iter_weight,
-            );
-        }
-
-        node_value
+        Self::cfr_traversal_static(
+            &self.strategy,
+            state,
+            hands,
+            board,
+            player,
+            pi_o,
+            pi_neg_o,
+            iter_weight,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -922,16 +871,6 @@ impl CFRSolver {
         }
 
         node_value
-    }
-
-    fn get_utility(
-        &self,
-        state: &GameState,
-        hands: &[[Card; 2]],
-        board: &[Card],
-        player: Player,
-    ) -> f64 {
-        Self::get_utility_impl(state, hands, board, player)
     }
 
     fn estimate_exploitability(&self) -> f64 {

@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use lazy_static::lazy_static;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -33,7 +34,7 @@ pub enum Street {
 }
 
 impl Street {
-    fn board_cards(self) -> usize {
+    fn board_card_count(self) -> usize {
         match self {
             Street::Preflop => 0,
             Street::Flop => 3,
@@ -50,7 +51,13 @@ pub struct Card {
 }
 
 impl Card {
-    fn all() -> Vec<Card> {
+    fn all() -> &'static Vec<Card> {
+        &ALL_CARDS
+    }
+}
+
+lazy_static! {
+    static ref ALL_CARDS: Vec<Card> = {
         let mut cards = Vec::with_capacity(52);
         for rank in 2..=14 {
             for suit in 0..4 {
@@ -58,23 +65,28 @@ impl Card {
             }
         }
         cards
-    }
+    };
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardSet {
-    cards: Vec<Card>,
+    cards: [Card; 5],
+    len: u8,
 }
 
 impl CardSet {
     fn from_cards(cards: &[Card]) -> Self {
+        let mut arr = [Card { rank: 0, suit: 0 }; 5];
+        let len = cards.len().min(5);
+        arr[..len].copy_from_slice(&cards[..len]);
         CardSet {
-            cards: cards.to_vec(),
+            cards: arr,
+            len: len as u8,
         }
     }
 
     fn to_vec(&self) -> Vec<Card> {
-        self.cards.clone()
+        self.cards[..self.len as usize].to_vec()
     }
 }
 
@@ -87,7 +99,7 @@ pub struct Deck {
 impl Deck {
     fn new() -> Self {
         Deck {
-            cards: Card::all(),
+            cards: Card::all().clone(),
             pos: 0,
         }
     }
@@ -422,12 +434,13 @@ impl Hand {
                 return Some(window[0]);
             }
         }
-        if unique_ranks.contains(&14) && unique_ranks.contains(&5) {
-            for window in unique_ranks.windows(4) {
-                if window[0] == 5 && window[3] == 2 {
-                    return Some(5);
-                }
-            }
+        if unique_ranks.contains(&14)
+            && unique_ranks.contains(&5)
+            && unique_ranks.contains(&4)
+            && unique_ranks.contains(&3)
+            && unique_ranks.contains(&2)
+        {
+            return Some(5);
         }
         None
     }
@@ -499,7 +512,7 @@ impl Hand {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct GameConfig {
     pub initial_stacks: [u64; NUM_PLAYERS],
     pub small_blind: u64,
@@ -671,7 +684,7 @@ impl CFRSolver {
         for iter in 1..=self.cfr_config.num_iterations {
             self.iteration = iter;
 
-            let iter_weight = (iter as f64).sqrt() + 1.0;
+            let iter_weight = iter as f64;
 
             self.run_iteration(iter_weight);
 
@@ -733,10 +746,10 @@ impl CFRSolver {
     }
 
     fn run_iteration_full(&self, iter_weight: f64) {
-        let all_cards: Vec<Card> = Card::all();
+        let all_cards = Card::all();
         let num_cards = all_cards.len();
         let strategy = self.strategy.clone();
-        let config = self.config.clone();
+        let config = self.config;
 
         (0..num_cards).into_par_iter().for_each(|i| {
             for j in (i + 1)..num_cards {
@@ -816,7 +829,8 @@ impl CFRSolver {
             return Self::get_utility_impl(state, hands, board, player);
         }
 
-        let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
+        let board_set =
+            CardSet::from_cards(&board[..state.street.board_card_count().min(board.len())]);
         let hole = &hands[current.index()];
 
         let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
@@ -825,10 +839,10 @@ impl CFRSolver {
         }
 
         let entry = strategy.get_or_create(&info_set, actions.len());
-        let mut strat = [0.0f64; 6];
+        let mut strat = [0.0f64; 8];
         entry.get_strategy(&mut strat[..actions.len()]);
 
-        let mut action_values = [0.0f64; 6];
+        let mut action_values = [0.0f64; 8];
         let mut node_value = 0.0;
         for (i, &action) in actions.iter().enumerate() {
             let new_state = state.apply_action(action);
@@ -862,7 +876,7 @@ impl CFRSolver {
         }
 
         if current == player {
-            let mut regrets = [0.0f64; 6];
+            let mut regrets = [0.0f64; 8];
             for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
@@ -900,7 +914,8 @@ impl CFRSolver {
             };
         }
 
-        let board_set = CardSet::from_cards(&board[..state.street.board_cards().min(board.len())]);
+        let board_set =
+            CardSet::from_cards(&board[..state.street.board_card_count().min(board.len())]);
         let hole = &hands[player.index()];
         let opp_index = 1 - player.index();
         let opp_hole = &hands[opp_index];

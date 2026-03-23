@@ -10,6 +10,7 @@ use tracing::{info, warn};
 const NUM_PLAYERS: usize = 2;
 const MAX_ACTIONS: usize = 8;
 
+/// A poker player position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Player {
     SB,
@@ -32,6 +33,7 @@ impl Player {
     }
 }
 
+/// A betting street in poker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Street {
     Preflop,
@@ -51,6 +53,7 @@ impl Street {
     }
 }
 
+/// A playing card with rank (2-14, where 14=Ace) and suit (0-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Card {
     rank: u8,
@@ -58,7 +61,20 @@ pub struct Card {
 }
 
 impl Card {
-    fn all() -> &'static [Card; 52] {
+    const MIN_RANK: u8 = 2;
+    const MAX_RANK: u8 = 14;
+    const NUM_SUITS: u8 = 4;
+
+    #[must_use]
+    pub fn new(rank: u8, suit: u8) -> Option<Self> {
+        if (Self::MIN_RANK..=Self::MAX_RANK).contains(&rank) && suit < Self::NUM_SUITS {
+            Some(Card { rank, suit })
+        } else {
+            None
+        }
+    }
+
+    pub fn all() -> &'static [Card; 52] {
         &ALL_CARDS
     }
 }
@@ -143,6 +159,7 @@ impl Deck {
     }
 }
 
+/// A poker action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Action {
     Fold,
@@ -314,6 +331,7 @@ impl GameState {
     }
 }
 
+/// A player's information set - what they can observe.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InfoSet {
     player: Player,
@@ -339,6 +357,7 @@ impl InfoSet {
     }
 }
 
+/// An evaluated poker hand with a comparable rank value.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hand {
     rank: u32,
@@ -549,6 +568,7 @@ impl Hand {
     }
 }
 
+/// Configuration for a poker game.
 #[derive(Debug, Clone, Copy)]
 pub struct GameConfig {
     pub initial_stacks: [u64; NUM_PLAYERS],
@@ -557,21 +577,24 @@ pub struct GameConfig {
     pub min_bet: u64,
 }
 
-#[derive(Debug, Clone)]
+/// Configuration for the CFR solver.
+#[derive(Debug, Clone, Copy)]
 pub struct CFRConfig {
     pub num_iterations: usize,
     pub log_interval: usize,
     pub save_interval: usize,
-    pub save_path: Option<String>,
+    pub save_path: Option<&'static str>,
     pub use_chance_sampling: bool,
 }
 
-#[derive(Debug, Clone)]
+/// Statistics about the computed strategy.
+#[derive(Debug, Clone, Copy)]
 pub struct StrategyStats {
-    info_sets: usize,
-    memory_mb: f64,
+    pub info_sets: usize,
+    pub memory_mb: f64,
 }
 
+/// Strategy and regret values for a single information set.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyEntry {
     regrets: [f64; MAX_ACTIONS],
@@ -621,6 +644,7 @@ impl StrategyEntry {
     }
 }
 
+/// Storage for CFR strategy and regret values.
 pub struct Strategy {
     entries: DashMap<InfoSet, StrategyEntry>,
 }
@@ -698,6 +722,7 @@ impl Strategy {
     }
 }
 
+/// CFR+ solver for computing Nash equilibrium strategies.
 pub struct CFRSolver {
     pub strategy: Arc<Strategy>,
     pub config: GameConfig,
@@ -984,7 +1009,7 @@ fn main() {
         num_iterations: 100,
         log_interval: 10,
         save_interval: 50,
-        save_path: Some("strategy.bin".to_string()),
+        save_path: Some("strategy.bin"),
         use_chance_sampling: true,
     };
 
@@ -1241,5 +1266,19 @@ mod tests {
         let high_card = Hand { rank: 0x00143210 };
         let pair = Hand { rank: 0x01140000 };
         assert!(pair > high_card);
+    }
+
+    #[test]
+    fn test_card_new_valid() {
+        assert!(Card::new(2, 0).is_some());
+        assert!(Card::new(14, 3).is_some());
+        assert!(Card::new(7, 2).is_some());
+    }
+
+    #[test]
+    fn test_card_new_invalid() {
+        assert!(Card::new(1, 0).is_none());
+        assert!(Card::new(15, 0).is_none());
+        assert!(Card::new(7, 4).is_none());
     }
 }

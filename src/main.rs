@@ -233,8 +233,9 @@ impl GameState {
             actions.push(Action::Call);
         }
 
-        const POT_BET_FRACTION: f64 = 0.5;
-        let bet_size = ((self.pot as f64 * POT_BET_FRACTION) as u64).min(remaining);
+        const POT_BET_FRACTION_NUM: u64 = 1;
+        const POT_BET_FRACTION_DENOM: u64 = 2;
+        let bet_size = (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
         if bet_size > 0 && bet_size < remaining {
             actions.push(Action::Bet(bet_size));
         }
@@ -244,7 +245,7 @@ impl GameState {
             actions.push(Action::Raise(raise_size.min(remaining)));
         }
 
-        if remaining > 0 && !actions.contains(&Action::AllIn) {
+        if remaining > 0 {
             actions.push(Action::AllIn);
         }
         actions
@@ -472,6 +473,7 @@ impl Hand {
             }
         }
 
+        // Wheel straight: A-2-3-4-5 (bits 14,5,4,3,2 = 0x403C)
         if rank_mask & 0x403C == 0x403C {
             return Some(5);
         }

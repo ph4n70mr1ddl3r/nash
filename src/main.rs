@@ -158,7 +158,7 @@ impl GameState {
     fn new(config: GameConfig) -> Self {
         GameState {
             street: Street::Preflop,
-            current_player: Player::SB,
+            current_player: Player::BB,
             pot: config.small_blind + config.big_blind,
             committed: [config.small_blind, config.big_blind],
             history: Vec::new(),
@@ -228,14 +228,15 @@ impl GameState {
             actions.push(Action::Call);
         }
 
-        let bet_size = ((self.pot as f64 * 0.5) as u64).min(remaining);
+        const POT_BET_FRACTION: f64 = 0.5;
+        let bet_size = ((self.pot as f64 * POT_BET_FRACTION) as u64).min(remaining);
         if bet_size > 0 && bet_size < remaining {
             actions.push(Action::Bet(bet_size));
         }
 
-        let raise_size = self.min_raise.min(remaining.saturating_sub(to_call));
-        if raise_size > 0 && to_call + raise_size < remaining {
-            actions.push(Action::Raise(raise_size));
+        let raise_size = self.min_raise.max(to_call);
+        if raise_size > 0 && to_call > 0 && raise_size <= remaining {
+            actions.push(Action::Raise(raise_size.min(remaining)));
         }
 
         if remaining > 0 && !actions.contains(&Action::AllIn) {
@@ -294,6 +295,7 @@ impl GameState {
                 Street::River => Street::River,
             };
             new_state.last_bet = 0;
+            new_state.min_raise = new_state.config.min_bet;
             new_state.current_player = Player::SB;
         } else {
             new_state.current_player = match self.current_player {
@@ -403,9 +405,9 @@ impl Hand {
     }
 
     fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
-        let mut rank = hand_type * 100_000_000;
+        let mut rank = hand_type << 24;
         for (i, &v) in values.iter().enumerate() {
-            rank += (v as u32) << (24 - i * 5);
+            rank += (v as u32) << (20 - i * 4);
         }
         rank
     }
@@ -559,7 +561,7 @@ pub struct StrategyStats {
     memory_mb: f64,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyEntry {
     regrets: Vec<f64>,
     strategy_sum: Vec<f64>,
@@ -671,7 +673,7 @@ impl Strategy {
         if let Some(mut entry) = self.entries.get_mut(info_set) {
             for (i, &r) in regrets.iter().enumerate() {
                 if i < entry.regrets.len() {
-                    entry.regrets[i] += r * iter_weight;
+                    entry.regrets[i] = (entry.regrets[i] + r).max(0.0);
                 }
             }
             for (i, &s) in strategy.iter().enumerate() {
@@ -719,10 +721,10 @@ impl CFRSolver {
             if iter % self.cfr_config.log_interval == 0 {
                 let elapsed = start.elapsed();
                 let stats = self.strategy.stats();
-                let exploitability = self.estimate_exploitability();
+                let exploitability = self.estimate_exploitability_placeholder();
 
                 info!(
-                    "Iteration {}: {} info sets, {:.2} MB, exploitability: {:.6}, elapsed: {:?}",
+                    "Iteration {}: {} info sets, {:.2} MB, exploitability (placeholder): {:.6}, elapsed: {:?}",
                     iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
                 );
             }
@@ -916,7 +918,7 @@ impl CFRSolver {
     }
 
     /// Placeholder: returns inverse iteration count instead of true exploitability.
-    fn estimate_exploitability(&self) -> f64 {
+    fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)
     }
 

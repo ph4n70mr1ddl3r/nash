@@ -212,6 +212,7 @@ impl GameState {
         }
     }
 
+    #[inline]
     fn legal_actions(&self) -> Vec<Action> {
         let mut actions = Vec::new();
         actions.push(Action::Fold);
@@ -245,6 +246,7 @@ impl GameState {
         actions
     }
 
+    #[inline]
     fn apply_action(&self, action: Action) -> Self {
         let mut new_state = self.clone();
         match action {
@@ -404,6 +406,7 @@ impl Hand {
         Self::hand_rank(0, &kickers)
     }
 
+    #[inline]
     fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
         let mut rank = hand_type << 24;
         for (i, &v) in values.iter().enumerate() {
@@ -465,7 +468,7 @@ impl Hand {
             }
         }
 
-        if rank_mask & 0x1003F == 0x1003F {
+        if rank_mask & 0x403C == 0x403C {
             return Some(5);
         }
         None
@@ -575,6 +578,7 @@ impl StrategyEntry {
         }
     }
 
+    #[inline]
     fn get_strategy(&self, out: &mut [f64]) {
         let len = out.len().min(self.regrets.len());
         let mut sum = 0.0;
@@ -785,32 +789,40 @@ impl CFRSolver {
     }
 
     fn run_iteration_full(&self, iter_weight: f64) {
+        use rand::prelude::*;
+
         let all_cards = Card::all();
         let num_cards = all_cards.len();
         let strategy = self.strategy.clone();
         let config = self.config;
 
         (0..num_cards).into_par_iter().for_each(|i| {
+            let mut rng = rand::rngs::StdRng::from_entropy();
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {
                         let hole_sb = [all_cards[i], all_cards[j]];
                         let hole_bb = [all_cards[k], all_cards[l]];
-                        let excluded = [
+                        let excluded: std::collections::HashSet<u16> = [
                             (hole_sb[0].rank as u16) << 8 | hole_sb[0].suit as u16,
                             (hole_sb[1].rank as u16) << 8 | hole_sb[1].suit as u16,
                             (hole_bb[0].rank as u16) << 8 | hole_bb[0].suit as u16,
                             (hole_bb[1].rank as u16) << 8 | hole_bb[1].suit as u16,
-                        ];
-                        let board: Vec<Card> = all_cards
+                        ]
+                        .into_iter()
+                        .collect();
+
+                        let mut remaining: Vec<Card> = all_cards
                             .iter()
                             .copied()
                             .filter(|c| {
                                 let key = (c.rank as u16) << 8 | c.suit as u16;
                                 !excluded.contains(&key)
                             })
-                            .take(5)
                             .collect();
+
+                        remaining.shuffle(&mut rng);
+                        let board: Vec<Card> = remaining.into_iter().take(5).collect();
 
                         let hands = [hole_sb, hole_bb];
                         let state = GameState::new(config);

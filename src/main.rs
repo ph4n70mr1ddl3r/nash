@@ -1,5 +1,4 @@
 use dashmap::DashMap;
-use lazy_static::lazy_static;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -52,22 +51,26 @@ pub struct Card {
 }
 
 impl Card {
-    fn all() -> &'static Vec<Card> {
+    fn all() -> &'static [Card; 52] {
         &ALL_CARDS
     }
 }
 
-lazy_static! {
-    static ref ALL_CARDS: Vec<Card> = {
-        let mut cards = Vec::with_capacity(52);
-        for rank in 2..=14 {
-            for suit in 0..4 {
-                cards.push(Card { rank, suit });
-            }
+static ALL_CARDS: [Card; 52] = {
+    let mut cards = [Card { rank: 0, suit: 0 }; 52];
+    let mut idx = 0;
+    let mut rank = 2;
+    while rank <= 14 {
+        let mut suit = 0;
+        while suit < 4 {
+            cards[idx] = Card { rank, suit };
+            idx += 1;
+            suit += 1;
         }
-        cards
-    };
-}
+        rank += 1;
+    }
+    cards
+};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardSet {
@@ -100,7 +103,7 @@ pub struct Deck {
 impl Deck {
     fn new() -> Self {
         Deck {
-            cards: Card::all().clone(),
+            cards: Card::all().to_vec(),
             pos: 0,
         }
     }
@@ -518,17 +521,19 @@ impl Hand {
     }
 
     fn find_two_pair(counts: &[u8; 15]) -> Option<(u8, u8)> {
-        let mut pairs: Vec<u8> = Vec::new();
+        let mut first: Option<u8> = None;
+        let mut second: Option<u8> = None;
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 2 {
-                pairs.push(rank as u8);
+                if first.is_none() {
+                    first = Some(rank as u8);
+                } else {
+                    second = Some(rank as u8);
+                    break;
+                }
             }
         }
-        if pairs.len() >= 2 {
-            Some((pairs[0], pairs[1]))
-        } else {
-            None
-        }
+        first.zip(second)
     }
 
     fn find_pair(counts: &[u8; 15]) -> Option<u8> {
@@ -628,8 +633,6 @@ impl Strategy {
         let mut total_memory = 0usize;
         for entry in self.entries.iter() {
             total_memory += std::mem::size_of::<InfoSet>();
-            total_memory += entry.key().hole.len() * std::mem::size_of::<Card>();
-            total_memory += entry.key().board.cards.len() * std::mem::size_of::<Card>();
             total_memory += entry.key().history.capacity() * std::mem::size_of::<Action>();
             total_memory += std::mem::size_of::<StrategyEntry>();
             total_memory += entry.value().regrets.capacity() * std::mem::size_of::<f64>();

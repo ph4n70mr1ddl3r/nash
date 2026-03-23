@@ -89,8 +89,8 @@ impl CardSet {
         }
     }
 
-    fn to_vec(&self) -> Vec<Card> {
-        self.cards[..self.len as usize].to_vec()
+    fn as_slice(&self) -> &[Card] {
+        &self.cards[..self.len as usize]
     }
 }
 
@@ -161,7 +161,7 @@ impl GameState {
     fn new(config: GameConfig) -> Self {
         GameState {
             street: Street::Preflop,
-            current_player: Player::BB,
+            current_player: Player::SB,
             pot: config.small_blind + config.big_blind,
             committed: [config.small_blind, config.big_blind],
             history: Vec::new(),
@@ -194,7 +194,7 @@ impl GameState {
             Action::Call => true,
             Action::Check => {
                 let prev = &self.history[self.history.len() - 2];
-                matches!(prev, Action::Check)
+                matches!(prev, Action::Check) || matches!(prev, Action::Call)
             }
             _ => false,
         }
@@ -571,21 +571,23 @@ pub struct StrategyStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyEntry {
-    regrets: Vec<f64>,
-    strategy_sum: Vec<f64>,
+    regrets: [f64; MAX_ACTIONS],
+    strategy_sum: [f64; MAX_ACTIONS],
+    num_actions: u8,
 }
 
 impl StrategyEntry {
     fn new(num_actions: usize) -> Self {
         StrategyEntry {
-            regrets: vec![0.0; num_actions],
-            strategy_sum: vec![0.0; num_actions],
+            regrets: [0.0; MAX_ACTIONS],
+            strategy_sum: [0.0; MAX_ACTIONS],
+            num_actions: num_actions.min(MAX_ACTIONS) as u8,
         }
     }
 
     #[inline]
     fn get_strategy(&self, out: &mut [f64]) {
-        let len = out.len().min(self.regrets.len());
+        let len = out.len().min(self.num_actions as usize);
         let mut sum = 0.0;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
             let s = regret.max(0.0);
@@ -603,6 +605,17 @@ impl StrategyEntry {
             }
         }
     }
+
+    #[inline]
+    fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_o: f64, iter_weight: f64) {
+        let len = self.num_actions as usize;
+        for (i, &r) in regrets.iter().enumerate().take(len) {
+            self.regrets[i] = (self.regrets[i] + r).max(0.0);
+        }
+        for (i, &s) in strategy.iter().enumerate().take(len) {
+            self.strategy_sum[i] += pi_o * s * iter_weight;
+        }
+    }
 }
 
 pub struct Strategy {
@@ -616,28 +629,39 @@ impl Strategy {
         }
     }
 
-    fn get_or_create(&self, info_set: &InfoSet, num_actions: usize) -> StrategyEntry {
+    fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
         use dashmap::mapref::entry::Entry;
         match self.entries.entry(info_set.clone()) {
-            Entry::Occupied(e) => e.get().clone(),
+            Entry::Occupied(e) => {
+                e.get().get_strategy(out);
+            }
             Entry::Vacant(e) => {
                 let entry = StrategyEntry::new(num_actions);
-                e.insert(entry.clone());
-                entry
+                entry.get_strategy(out);
+                e.insert(entry);
             }
+        }
+    }
+
+    fn update_entry(
+        &self,
+        info_set: &InfoSet,
+        regrets: &[f64],
+        strategy: &[f64],
+        pi_o: f64,
+        iter_weight: f64,
+    ) {
+        if let Some(mut entry) = self.entries.get_mut(info_set) {
+            entry.update(regrets, strategy, pi_o, iter_weight);
         }
     }
 
     fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
-        let mut total_memory = 0usize;
-        for entry in self.entries.iter() {
-            total_memory += std::mem::size_of::<InfoSet>();
-            total_memory += entry.key().history.capacity() * std::mem::size_of::<Action>();
-            total_memory += std::mem::size_of::<StrategyEntry>();
-            total_memory += entry.value().regrets.capacity() * std::mem::size_of::<f64>();
-            total_memory += entry.value().strategy_sum.capacity() * std::mem::size_of::<f64>();
-        }
+        let total_memory = info_sets
+            * (std::mem::size_of::<InfoSet>()
+                + std::mem::size_of::<StrategyEntry>()
+                + std::mem::size_of::<Action>() * 10);
         let memory_mb = total_memory as f64 / 1_000_000.0;
         StrategyStats {
             info_sets,
@@ -667,28 +691,6 @@ impl Strategy {
             strategy.entries.insert(key, value);
         }
         Ok(strategy)
-    }
-
-    fn update(
-        &self,
-        info_set: &InfoSet,
-        regrets: &[f64],
-        strategy: &[f64],
-        pi_o: f64,
-        iter_weight: f64,
-    ) {
-        if let Some(mut entry) = self.entries.get_mut(info_set) {
-            for (i, &r) in regrets.iter().enumerate() {
-                if i < entry.regrets.len() {
-                    entry.regrets[i] = (entry.regrets[i] + r).max(0.0);
-                }
-            }
-            for (i, &s) in strategy.iter().enumerate() {
-                if i < entry.strategy_sum.len() {
-                    entry.strategy_sum[i] += pi_o * s * iter_weight;
-                }
-            }
-        }
     }
 }
 
@@ -806,22 +808,14 @@ impl CFRSolver {
                     for l in (k + 1)..num_cards {
                         let hole_sb = [all_cards[i], all_cards[j]];
                         let hole_bb = [all_cards[k], all_cards[l]];
-                        let excluded: std::collections::HashSet<u16> = [
-                            (hole_sb[0].rank as u16) << 8 | hole_sb[0].suit as u16,
-                            (hole_sb[1].rank as u16) << 8 | hole_sb[1].suit as u16,
-                            (hole_bb[0].rank as u16) << 8 | hole_bb[0].suit as u16,
-                            (hole_bb[1].rank as u16) << 8 | hole_bb[1].suit as u16,
-                        ]
-                        .into_iter()
-                        .collect();
+                        let excluded_mask: u64 =
+                            (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
 
                         let mut remaining: Vec<Card> = all_cards
                             .iter()
-                            .copied()
-                            .filter(|c| {
-                                let key = (c.rank as u16) << 8 | c.suit as u16;
-                                !excluded.contains(&key)
-                            })
+                            .enumerate()
+                            .filter(|(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
+                            .map(|(_, c)| *c)
                             .collect();
 
                         remaining.shuffle(&mut rng);
@@ -877,9 +871,8 @@ impl CFRSolver {
             info_set.add_action(action);
         }
 
-        let entry = strategy.get_or_create(&info_set, actions.len());
         let mut strat = [0.0f64; MAX_ACTIONS];
-        entry.get_strategy(&mut strat[..actions.len()]);
+        strategy.get_strategy(&info_set, actions.len(), &mut strat[..actions.len()]);
 
         let mut action_values = [0.0f64; MAX_ACTIONS];
         let mut node_value = 0.0;
@@ -920,7 +913,7 @@ impl CFRSolver {
                 regrets[i] = pi_neg_o * (av - node_value);
             }
 
-            strategy.update(
+            strategy.update_entry(
                 &info_set,
                 &regrets[..actions.len()],
                 &strat[..actions.len()],
@@ -932,7 +925,8 @@ impl CFRSolver {
         node_value
     }
 
-    /// Placeholder: returns inverse iteration count instead of true exploitability.
+    /// TODO: Implement proper exploitability via best-response calculation.
+    /// Currently returns inverse iteration count as a convergence proxy.
     fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)
     }
@@ -960,8 +954,8 @@ impl CFRSolver {
         let opp_hole = &hands[opp_index];
         let player_committed = state.committed[player.index()] as f64;
 
-        let hand = Hand::evaluate(hole, &board_set.to_vec());
-        let opp_hand = Hand::evaluate(opp_hole, &board_set.to_vec());
+        let hand = Hand::evaluate(hole, board_set.as_slice());
+        let opp_hand = Hand::evaluate(opp_hole, board_set.as_slice());
 
         match hand.cmp(&opp_hand) {
             std::cmp::Ordering::Greater => state.pot as f64 - player_committed,

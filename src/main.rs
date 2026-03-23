@@ -1,6 +1,8 @@
 use dashmap::DashMap;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::sync::Arc;
@@ -9,6 +11,36 @@ use tracing::{info, warn};
 
 const NUM_PLAYERS: usize = 2;
 const MAX_ACTIONS: usize = 8;
+
+#[derive(Debug)]
+pub enum StrategyError {
+    Io(std::io::Error),
+    Serialization(String),
+}
+
+impl fmt::Display for StrategyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StrategyError::Io(e) => write!(f, "IO error: {}", e),
+            StrategyError::Serialization(msg) => write!(f, "Serialization error: {}", msg),
+        }
+    }
+}
+
+impl Error for StrategyError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            StrategyError::Io(e) => Some(e),
+            StrategyError::Serialization(_) => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for StrategyError {
+    fn from(e: std::io::Error) -> Self {
+        StrategyError::Io(e)
+    }
+}
 
 /// A poker player position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -43,6 +75,7 @@ pub enum Street {
 }
 
 impl Street {
+    #[must_use]
     fn board_card_count(self) -> usize {
         match self {
             Street::Preflop => 0,
@@ -112,6 +145,7 @@ impl CardSet {
         }
     }
 
+    #[must_use]
     fn as_slice(&self) -> &[Card] {
         &self.cards[..self.len as usize]
     }
@@ -183,6 +217,7 @@ pub struct GameState {
 }
 
 impl GameState {
+    #[must_use]
     fn new(config: GameConfig) -> Self {
         GameState {
             street: Street::Preflop,
@@ -196,20 +231,24 @@ impl GameState {
         }
     }
 
+    #[must_use]
     fn is_terminal(&self) -> bool {
         self.is_fold() || self.is_showdown()
     }
 
+    #[must_use]
     fn is_fold(&self) -> bool {
         self.history
             .last()
             .is_some_and(|a| matches!(a, Action::Fold))
     }
 
+    #[must_use]
     fn is_showdown(&self) -> bool {
         self.street == Street::River && self.betting_round_closed()
     }
 
+    #[must_use]
     fn betting_round_closed(&self) -> bool {
         if self.history.len() < 2 {
             return false;
@@ -225,6 +264,7 @@ impl GameState {
         }
     }
 
+    #[must_use]
     fn winner(&self) -> Option<Player> {
         if let Some(Action::Fold) = self.history.last() {
             Some(self.current_player)
@@ -234,6 +274,7 @@ impl GameState {
     }
 
     #[inline]
+    #[must_use]
     fn legal_actions(&self) -> Vec<Action> {
         let mut actions = Vec::new();
         actions.push(Action::Fold);
@@ -269,6 +310,7 @@ impl GameState {
     }
 
     #[inline]
+    #[must_use]
     fn apply_action(&self, action: Action) -> Self {
         let mut new_state = self.clone();
         match action {
@@ -577,14 +619,37 @@ pub struct GameConfig {
     pub min_bet: u64,
 }
 
+impl Default for GameConfig {
+    fn default() -> Self {
+        GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        }
+    }
+}
+
 /// Configuration for the CFR solver.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CFRConfig {
     pub num_iterations: usize,
     pub log_interval: usize,
     pub save_interval: usize,
-    pub save_path: Option<&'static str>,
+    pub save_path: Option<String>,
     pub use_chance_sampling: bool,
+}
+
+impl Default for CFRConfig {
+    fn default() -> Self {
+        CFRConfig {
+            num_iterations: 100,
+            log_interval: 10,
+            save_interval: 50,
+            save_path: None,
+            use_chance_sampling: true,
+        }
+    }
 }
 
 /// Statistics about the computed strategy.
@@ -698,7 +763,7 @@ impl Strategy {
         }
     }
 
-    fn save(&self, path: &str) -> std::io::Result<()> {
+    fn save(&self, path: &str) -> Result<(), StrategyError> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         let entries: Vec<_> = self
@@ -706,14 +771,15 @@ impl Strategy {
             .iter()
             .map(|e| (e.key().clone(), e.value().clone()))
             .collect();
-        bincode::serialize_into(writer, &entries).map_err(|e| std::io::Error::other(e.to_string()))
+        bincode::serialize_into(writer, &entries)
+            .map_err(|e| StrategyError::Serialization(e.to_string()))
     }
 
-    pub fn load(path: &str) -> std::io::Result<Self> {
+    pub fn load(path: &str) -> Result<Self, StrategyError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        let entries: Vec<(InfoSet, StrategyEntry)> =
-            bincode::deserialize_from(reader).map_err(|e| std::io::Error::other(e.to_string()))?;
+        let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)
+            .map_err(|e| StrategyError::Serialization(e.to_string()))?;
         let strategy = Strategy::new();
         for (key, value) in entries {
             strategy.entries.insert(key, value);
@@ -1009,7 +1075,7 @@ fn main() {
         num_iterations: 100,
         log_interval: 10,
         save_interval: 50,
-        save_path: Some("strategy.bin"),
+        save_path: Some("strategy.bin".to_string()),
         use_chance_sampling: true,
     };
 
@@ -1206,7 +1272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fold_terminal() {
+    fn test_fold_terminal_sb_folds_bb_wins() {
         let config = GameConfig {
             initial_stacks: [1000, 1000],
             small_blind: 1,
@@ -1218,6 +1284,22 @@ mod tests {
         assert!(state.is_terminal());
         assert!(state.is_fold());
         assert_eq!(state.winner(), Some(Player::BB));
+    }
+
+    #[test]
+    fn test_fold_terminal_bb_folds_sb_wins() {
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::Raise(10));
+        let state = state.apply_action(Action::Fold);
+        assert!(state.is_terminal());
+        assert!(state.is_fold());
+        assert_eq!(state.winner(), Some(Player::SB));
     }
 
     #[test]

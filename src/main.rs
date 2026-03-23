@@ -9,6 +9,7 @@ use std::time::Instant;
 use tracing::{info, warn};
 
 const NUM_PLAYERS: usize = 2;
+const MAX_ACTIONS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Player {
@@ -228,16 +229,16 @@ impl GameState {
         }
 
         let bet_size = ((self.pot as f64 * 0.5) as u64).min(remaining);
-        if bet_size > 0 && bet_size <= remaining {
+        if bet_size > 0 && bet_size < remaining {
             actions.push(Action::Bet(bet_size));
         }
 
         let raise_size = self.min_raise.min(remaining.saturating_sub(to_call));
-        if raise_size > 0 && to_call + raise_size <= remaining {
+        if raise_size > 0 && to_call + raise_size < remaining {
             actions.push(Action::Raise(raise_size));
         }
 
-        if remaining > 0 {
+        if remaining > 0 && !actions.contains(&Action::AllIn) {
             actions.push(Action::AllIn);
         }
         actions
@@ -400,7 +401,7 @@ impl Hand {
 
     fn high_card_rank(cards: &[Card]) -> u32 {
         let mut rank = 0u32;
-        for (i, card) in cards.iter().enumerate() {
+        for (i, card) in cards.iter().enumerate().take(5) {
             rank += (card.rank as u32) << (16 - i * 4);
         }
         rank
@@ -425,21 +426,19 @@ impl Hand {
     }
 
     fn find_straight(cards: &[Card]) -> Option<u8> {
-        let mut unique_ranks: Vec<u8> = cards.iter().map(|c| c.rank).collect();
-        unique_ranks.sort_by(|a, b| b.cmp(a));
-        unique_ranks.dedup();
+        let mut rank_mask: u32 = 0;
+        for card in cards {
+            rank_mask |= 1 << card.rank;
+        }
 
-        for window in unique_ranks.windows(5) {
-            if window[0] - window[4] == 4 {
-                return Some(window[0]);
+        for high in (5..=14).rev() {
+            let straight_mask = ((1u32 << 5) - 1) << (high - 4);
+            if rank_mask & straight_mask == straight_mask {
+                return Some(high);
             }
         }
-        if unique_ranks.contains(&14)
-            && unique_ranks.contains(&5)
-            && unique_ranks.contains(&4)
-            && unique_ranks.contains(&3)
-            && unique_ranks.contains(&2)
-        {
+
+        if rank_mask & 0x1003F == 0x1003F {
             return Some(5);
         }
         None
@@ -740,9 +739,18 @@ impl CFRSolver {
         let board: Vec<Card> = deck.deal(5);
         let hands = [hole_sb, hole_bb];
 
-        let state = GameState::new(self.config.clone());
+        let state = GameState::new(self.config);
 
-        self.cfr_traversal(&state, &hands, &board, Player::SB, 1.0, 1.0, iter_weight);
+        Self::cfr_traversal_static(
+            &self.strategy,
+            &state,
+            &hands,
+            &board,
+            Player::SB,
+            1.0,
+            1.0,
+            iter_weight,
+        );
     }
 
     fn run_iteration_full(&self, iter_weight: f64) {
@@ -766,7 +774,7 @@ impl CFRSolver {
                         let board: Vec<Card> = remaining.into_iter().take(5).collect();
 
                         let hands = [hole_sb, hole_bb];
-                        let state = GameState::new(config.clone());
+                        let state = GameState::new(config);
 
                         Self::cfr_traversal_static(
                             &strategy,
@@ -782,29 +790,6 @@ impl CFRSolver {
                 }
             }
         });
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn cfr_traversal(
-        &self,
-        state: &GameState,
-        hands: &[[Card; 2]],
-        board: &[Card],
-        player: Player,
-        pi_o: f64,
-        pi_neg_o: f64,
-        iter_weight: f64,
-    ) -> f64 {
-        Self::cfr_traversal_static(
-            &self.strategy,
-            state,
-            hands,
-            board,
-            player,
-            pi_o,
-            pi_neg_o,
-            iter_weight,
-        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -839,10 +824,10 @@ impl CFRSolver {
         }
 
         let entry = strategy.get_or_create(&info_set, actions.len());
-        let mut strat = [0.0f64; 8];
+        let mut strat = [0.0f64; MAX_ACTIONS];
         entry.get_strategy(&mut strat[..actions.len()]);
 
-        let mut action_values = [0.0f64; 8];
+        let mut action_values = [0.0f64; MAX_ACTIONS];
         let mut node_value = 0.0;
         for (i, &action) in actions.iter().enumerate() {
             let new_state = state.apply_action(action);
@@ -876,7 +861,7 @@ impl CFRSolver {
         }
 
         if current == player {
-            let mut regrets = [0.0f64; 8];
+            let mut regrets = [0.0f64; MAX_ACTIONS];
             for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
                 regrets[i] = pi_neg_o * (av - node_value);
             }

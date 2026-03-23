@@ -346,7 +346,8 @@ impl Hand {
 
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         if cards.len() < 5 {
-            return Self::high_card_rank(cards);
+            let kickers: Vec<u8> = cards.iter().map(|c| c.rank).collect();
+            return Self::hand_rank(0, &kickers);
         }
 
         let flush = Self::find_flush(cards);
@@ -355,9 +356,9 @@ impl Hand {
         if let (Some(flush_cards), Some(straight_high)) = (&flush, straight) {
             if Self::is_straight_flush(flush_cards, straight_high) {
                 if straight_high == 14 {
-                    return Self::hand_rank(9, 0, 0);
+                    return Self::hand_rank(9, &[14]);
                 }
-                return Self::hand_rank(8, straight_high, 0);
+                return Self::hand_rank(8, &[straight_high]);
             }
         }
 
@@ -365,46 +366,70 @@ impl Hand {
         let counts = Self::count_ranks(&ranks);
 
         if let Some(rank) = Self::find_four_of_a_kind(&counts) {
-            return Self::hand_rank(7, rank, 0);
+            let kicker = Self::best_kicker(&counts, &[rank]);
+            return Self::hand_rank(7, &[rank, kicker]);
         }
 
         if let Some((trips, pair)) = Self::find_full_house(&counts) {
-            return Self::hand_rank(6, trips, pair);
+            return Self::hand_rank(6, &[trips, pair]);
         }
 
         if let Some(flush_cards) = flush {
-            return Self::hand_rank(5, flush_cards[0].rank, 0);
+            let kickers: Vec<u8> = flush_cards.iter().take(5).map(|c| c.rank).collect();
+            return Self::hand_rank(5, &kickers);
         }
 
         if let Some(high) = straight {
-            return Self::hand_rank(4, high, 0);
+            return Self::hand_rank(4, &[high]);
         }
 
         if let Some(rank) = Self::find_three_of_a_kind(&counts) {
-            return Self::hand_rank(3, rank, 0);
+            let kickers = Self::best_kickers(&counts, &[rank], 2);
+            return Self::hand_rank(3, &[rank, kickers[0], kickers[1]]);
         }
 
         if let Some((high, low)) = Self::find_two_pair(&counts) {
-            return Self::hand_rank(2, high, low);
+            let kicker = Self::best_kicker(&counts, &[high, low]);
+            return Self::hand_rank(2, &[high, low, kicker]);
         }
 
         if let Some(rank) = Self::find_pair(&counts) {
-            return Self::hand_rank(1, rank, 0);
+            let kickers = Self::best_kickers(&counts, &[rank], 3);
+            return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
         }
 
-        Self::hand_rank(0, cards[0].rank, 0)
+        let kickers: Vec<u8> = cards.iter().take(5).map(|c| c.rank).collect();
+        Self::hand_rank(0, &kickers)
     }
 
-    fn hand_rank(hand_type: u32, primary: u8, secondary: u8) -> u32 {
-        (hand_type * 1_000_000) + (primary as u32 * 100) + (secondary as u32)
-    }
-
-    fn high_card_rank(cards: &[Card]) -> u32 {
-        let mut rank = 0u32;
-        for (i, card) in cards.iter().enumerate().take(5) {
-            rank += (card.rank as u32) << (16 - i * 4);
+    fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
+        let mut rank = hand_type * 100_000_000;
+        for (i, &v) in values.iter().enumerate() {
+            rank += (v as u32) << (24 - i * 5);
         }
         rank
+    }
+
+    fn best_kicker(counts: &[u8; 15], excluded: &[u8]) -> u8 {
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count > 0 && !excluded.contains(&(rank as u8)) {
+                return rank as u8;
+            }
+        }
+        0
+    }
+
+    fn best_kickers(counts: &[u8; 15], excluded: &[u8], n: usize) -> Vec<u8> {
+        let mut kickers = Vec::with_capacity(n);
+        for (rank, &count) in counts.iter().enumerate().rev() {
+            if count > 0 && !excluded.contains(&(rank as u8)) {
+                kickers.push(rank as u8);
+                if kickers.len() >= n {
+                    break;
+                }
+            }
+        }
+        kickers
     }
 
     fn find_flush(cards: &[Card]) -> Option<Vec<Card>> {
@@ -596,6 +621,10 @@ impl Strategy {
         let info_sets = self.entries.len();
         let mut total_memory = 0usize;
         for entry in self.entries.iter() {
+            total_memory += std::mem::size_of::<InfoSet>();
+            total_memory += entry.key().hole.len() * std::mem::size_of::<Card>();
+            total_memory += entry.key().board.cards.len() * std::mem::size_of::<Card>();
+            total_memory += entry.key().history.capacity() * std::mem::size_of::<Action>();
             total_memory += std::mem::size_of::<StrategyEntry>();
             total_memory += entry.value().regrets.capacity() * std::mem::size_of::<f64>();
             total_memory += entry.value().strategy_sum.capacity() * std::mem::size_of::<f64>();
@@ -765,13 +794,21 @@ impl CFRSolver {
                     for l in (k + 1)..num_cards {
                         let hole_sb = [all_cards[i], all_cards[j]];
                         let hole_bb = [all_cards[k], all_cards[l]];
-                        let excluded = [hole_sb[0], hole_sb[1], hole_bb[0], hole_bb[1]];
-                        let remaining: Vec<Card> = all_cards
+                        let excluded = [
+                            (hole_sb[0].rank as u16) << 8 | hole_sb[0].suit as u16,
+                            (hole_sb[1].rank as u16) << 8 | hole_sb[1].suit as u16,
+                            (hole_bb[0].rank as u16) << 8 | hole_bb[0].suit as u16,
+                            (hole_bb[1].rank as u16) << 8 | hole_bb[1].suit as u16,
+                        ];
+                        let board: Vec<Card> = all_cards
                             .iter()
                             .copied()
-                            .filter(|c| !excluded.contains(c))
+                            .filter(|c| {
+                                let key = (c.rank as u16) << 8 | c.suit as u16;
+                                !excluded.contains(&key)
+                            })
+                            .take(5)
                             .collect();
-                        let board: Vec<Card> = remaining.into_iter().take(5).collect();
 
                         let hands = [hole_sb, hole_bb];
                         let state = GameState::new(config);

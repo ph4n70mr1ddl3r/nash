@@ -50,17 +50,52 @@ pub enum Player {
 }
 
 impl Player {
-    pub fn index(self) -> usize {
+    #[must_use]
+    pub const fn index(self) -> usize {
         match self {
             Player::SB => 0,
             Player::BB => 1,
         }
     }
 
-    pub fn opponent(self) -> Self {
+    #[must_use]
+    pub const fn opponent(self) -> Self {
         match self {
             Player::SB => Player::BB,
             Player::BB => Player::SB,
+        }
+    }
+}
+
+impl fmt::Display for Player {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Player::SB => write!(f, "SB"),
+            Player::BB => write!(f, "BB"),
+        }
+    }
+}
+
+impl fmt::Display for Street {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Street::Preflop => write!(f, "Preflop"),
+            Street::Flop => write!(f, "Flop"),
+            Street::Turn => write!(f, "Turn"),
+            Street::River => write!(f, "River"),
+        }
+    }
+}
+
+impl fmt::Display for Action {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Action::Fold => write!(f, "Fold"),
+            Action::Check => write!(f, "Check"),
+            Action::Call => write!(f, "Call"),
+            Action::Bet(amount) => write!(f, "Bet({})", amount),
+            Action::Raise(amount) => write!(f, "Raise({})", amount),
+            Action::AllIn => write!(f, "AllIn"),
         }
     }
 }
@@ -76,6 +111,7 @@ pub enum Street {
 
 impl Street {
     #[must_use]
+    #[inline]
     fn board_card_count(self) -> usize {
         match self {
             Street::Preflop => 0,
@@ -135,6 +171,7 @@ pub struct CardSet {
 }
 
 impl CardSet {
+    #[inline]
     fn from_cards(cards: &[Card]) -> Self {
         let mut arr = [Card { rank: 0, suit: 0 }; 5];
         let len = cards.len().min(5);
@@ -146,6 +183,7 @@ impl CardSet {
     }
 
     #[must_use]
+    #[inline]
     fn as_slice(&self) -> &[Card] {
         &self.cards[..self.len as usize]
     }
@@ -232,11 +270,13 @@ impl GameState {
     }
 
     #[must_use]
+    #[inline]
     fn is_terminal(&self) -> bool {
         self.is_fold() || self.is_showdown()
     }
 
     #[must_use]
+    #[inline]
     fn is_fold(&self) -> bool {
         self.history
             .last()
@@ -244,11 +284,13 @@ impl GameState {
     }
 
     #[must_use]
+    #[inline]
     fn is_showdown(&self) -> bool {
         self.street == Street::River && self.betting_round_closed()
     }
 
     #[must_use]
+    #[inline]
     fn betting_round_closed(&self) -> bool {
         if self.history.len() < 2 {
             return false;
@@ -265,6 +307,7 @@ impl GameState {
     }
 
     #[must_use]
+    #[inline]
     fn winner(&self) -> Option<Player> {
         if let Some(Action::Fold) = self.history.last() {
             Some(self.current_player)
@@ -406,6 +449,7 @@ pub struct Hand {
 }
 
 impl Hand {
+    #[inline]
     fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
         let mut all_cards: Vec<Card> = hole.iter().copied().chain(board.iter().copied()).collect();
         all_cards.sort_by(|a, b| b.rank.cmp(&a.rank));
@@ -414,6 +458,7 @@ impl Hand {
         Hand { rank }
     }
 
+    #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         if cards.len() < 5 {
             let kickers: Vec<u8> = cards.iter().map(|c| c.rank).collect();

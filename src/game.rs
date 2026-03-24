@@ -105,6 +105,7 @@ pub struct GameState {
     pub min_raise: u64,
     pub last_bet: u64,
     pub config: GameConfig,
+    round_start: usize,
 }
 
 impl GameState {
@@ -119,6 +120,7 @@ impl GameState {
             min_raise: config.min_bet,
             last_bet: config.big_blind,
             config,
+            round_start: 0,
         }
     }
 
@@ -145,15 +147,19 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn betting_round_closed(&self) -> bool {
-        if self.history.len() < 2 {
+        let round_actions = &self.history[self.round_start..];
+        if round_actions.is_empty() {
             return false;
         }
-        let last = &self.history[self.history.len() - 1];
+        let last = &round_actions[round_actions.len() - 1];
         match last {
             Action::Call => true,
             Action::Check => {
-                let prev = &self.history[self.history.len() - 2];
-                matches!(prev, Action::Check) || matches!(prev, Action::Call)
+                if round_actions.len() < 2 {
+                    return false;
+                }
+                let prev = &round_actions[round_actions.len() - 2];
+                matches!(prev, Action::Check)
             }
             _ => false,
         }
@@ -181,22 +187,24 @@ impl GameState {
         let to_call = self
             .last_bet
             .saturating_sub(self.committed[self.current_player.index()]);
+
         if to_call == 0 {
             actions.push(Action::Check);
+
+            const POT_BET_FRACTION_NUM: u64 = 1;
+            const POT_BET_FRACTION_DENOM: u64 = 2;
+            let bet_size =
+                (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
+            if bet_size > 0 {
+                actions.push(Action::Bet(bet_size));
+            }
         } else if to_call <= remaining {
             actions.push(Action::Call);
-        }
 
-        const POT_BET_FRACTION_NUM: u64 = 1;
-        const POT_BET_FRACTION_DENOM: u64 = 2;
-        let bet_size = (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
-        if bet_size > 0 && bet_size < remaining {
-            actions.push(Action::Bet(bet_size));
-        }
-
-        let raise_size = self.min_raise.max(to_call);
-        if raise_size > 0 && to_call > 0 && raise_size <= remaining {
-            actions.push(Action::Raise(raise_size.min(remaining)));
+            let raise_size = self.min_raise.max(to_call);
+            if raise_size <= remaining && remaining > to_call {
+                actions.push(Action::Raise(raise_size.min(remaining - to_call)));
+            }
         }
 
         if remaining > 0 {
@@ -259,6 +267,7 @@ impl GameState {
             new_state.last_bet = 0;
             new_state.min_raise = new_state.config.min_bet;
             new_state.current_player = Player::SB;
+            new_state.round_start = new_state.history.len();
         } else {
             new_state.current_player = match self.current_player {
                 Player::SB => Player::BB,

@@ -1,9 +1,41 @@
+use thiserror::Error;
+
 #[derive(Debug, Clone, Copy)]
 pub struct GameConfig {
     pub initial_stacks: [u64; 2],
     pub small_blind: u64,
     pub big_blind: u64,
     pub min_bet: u64,
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("Stacks must be positive")]
+    InvalidStacks,
+    #[error("Blinds must be positive")]
+    InvalidBlinds,
+    #[error("Big blind must be >= small blind")]
+    InvalidBlindRatio,
+    #[error("Min bet must be positive")]
+    InvalidMinBet,
+}
+
+impl GameConfig {
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.initial_stacks.contains(&0) {
+            return Err(ConfigError::InvalidStacks);
+        }
+        if self.small_blind == 0 || self.big_blind == 0 {
+            return Err(ConfigError::InvalidBlinds);
+        }
+        if self.big_blind < self.small_blind {
+            return Err(ConfigError::InvalidBlindRatio);
+        }
+        if self.min_bet == 0 {
+            return Err(ConfigError::InvalidMinBet);
+        }
+        Ok(())
+    }
 }
 
 impl Default for GameConfig {

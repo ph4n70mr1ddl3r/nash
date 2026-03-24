@@ -30,7 +30,7 @@ mod tests {
     };
 
     fn card(rank: u8, suit: u8) -> Card {
-        Card { rank, suit }
+        Card::new(rank, suit).expect("valid card")
     }
 
     #[test]
@@ -181,8 +181,11 @@ mod tests {
         };
         let state = GameState::new(config);
         let state = state.apply_action(Action::Call);
+        assert_eq!(state.street, Street::Flop);
         let state = state.apply_action(Action::Check);
-        assert!(state.betting_round_closed());
+        assert!(!state.betting_round_closed());
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::Turn);
     }
 
     #[test]
@@ -195,8 +198,10 @@ mod tests {
         };
         let state = GameState::new(config);
         let state = state.apply_action(Action::Raise(10));
+        assert_eq!(state.street, Street::Preflop);
+        assert!(!state.betting_round_closed());
         let state = state.apply_action(Action::Call);
-        assert!(state.betting_round_closed());
+        assert_eq!(state.street, Street::Flop);
     }
 
     #[test]
@@ -287,8 +292,9 @@ mod tests {
 
     #[test]
     fn test_hand_rank_ordering() {
-        let high_card = Hand { rank: 0x00143210 };
-        let pair = Hand { rank: 0x01140000 };
+        let board = [card(10, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];
+        let high_card = Hand::evaluate(&[card(14, 0), card(12, 1)], &board);
+        let pair = Hand::evaluate(&[card(14, 0), card(14, 1)], &board);
         assert!(pair > high_card);
     }
 

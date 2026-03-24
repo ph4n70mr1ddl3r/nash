@@ -1,16 +1,42 @@
+use std::fmt;
+
 use crate::card::Card;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hand {
-    pub rank: u32,
+    rank: u32,
 }
 
 impl Hand {
     #[must_use]
     #[inline]
+    pub const fn rank(self) -> u32 {
+        self.rank
+    }
+
+    #[must_use]
+    #[inline]
+    pub fn hand_type(&self) -> HandType {
+        match self.rank >> 24 {
+            0 => HandType::HighCard,
+            1 => HandType::Pair,
+            2 => HandType::TwoPair,
+            3 => HandType::ThreeOfAKind,
+            4 => HandType::Straight,
+            5 => HandType::Flush,
+            6 => HandType::FullHouse,
+            7 => HandType::FourOfAKind,
+            8 => HandType::StraightFlush,
+            9 => HandType::RoyalFlush,
+            _ => HandType::HighCard,
+        }
+    }
+
+    #[must_use]
+    #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
         let mut all_cards: Vec<Card> = hole.iter().copied().chain(board.iter().copied()).collect();
-        all_cards.sort_by(|a, b| b.rank.cmp(&a.rank));
+        all_cards.sort_by_key(|b| std::cmp::Reverse(b.rank()));
 
         let rank = Self::evaluate_hand_rank(&all_cards);
         Hand { rank }
@@ -19,7 +45,7 @@ impl Hand {
     #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         if cards.len() < 5 {
-            let kickers: Vec<u8> = cards.iter().map(|c| c.rank).collect();
+            let kickers: Vec<u8> = cards.iter().map(|c| c.rank()).collect();
             return Self::hand_rank(0, &kickers);
         }
 
@@ -35,7 +61,7 @@ impl Hand {
             }
         }
 
-        let ranks: Vec<u8> = cards.iter().map(|c| c.rank).collect();
+        let ranks: Vec<u8> = cards.iter().map(|c| c.rank()).collect();
         let counts = Self::count_ranks(&ranks);
 
         if let Some(rank) = Self::find_four_of_a_kind(&counts) {
@@ -48,7 +74,7 @@ impl Hand {
         }
 
         if let Some(flush_cards) = flush {
-            let kickers: Vec<u8> = flush_cards.iter().take(5).map(|c| c.rank).collect();
+            let kickers: Vec<u8> = flush_cards.iter().take(5).map(|c| c.rank()).collect();
             return Self::hand_rank(5, &kickers);
         }
 
@@ -71,7 +97,7 @@ impl Hand {
             return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
         }
 
-        let kickers: Vec<u8> = cards.iter().take(5).map(|c| c.rank).collect();
+        let kickers: Vec<u8> = cards.iter().take(5).map(|c| c.rank()).collect();
         Self::hand_rank(0, &kickers)
     }
 
@@ -109,13 +135,13 @@ impl Hand {
     fn find_flush(cards: &[Card]) -> Option<Vec<Card>> {
         let mut suit_counts = [0usize; 4];
         for card in cards {
-            suit_counts[card.suit as usize] += 1;
+            suit_counts[card.suit() as usize] += 1;
         }
         for (suit, &count) in suit_counts.iter().enumerate() {
             if count >= 5 {
                 let flush_cards: Vec<Card> = cards
                     .iter()
-                    .filter(|c| c.suit as usize == suit)
+                    .filter(|c| c.suit() as usize == suit)
                     .copied()
                     .collect();
                 return Some(flush_cards);
@@ -127,7 +153,7 @@ impl Hand {
     fn find_straight(cards: &[Card]) -> Option<u8> {
         let mut rank_mask: u32 = 0;
         for card in cards {
-            rank_mask |= 1 << card.rank;
+            rank_mask |= 1 << card.rank();
         }
 
         for high in (5..=14).rev() {
@@ -209,5 +235,42 @@ impl Hand {
             }
         }
         None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HandType {
+    HighCard,
+    Pair,
+    TwoPair,
+    ThreeOfAKind,
+    Straight,
+    Flush,
+    FullHouse,
+    FourOfAKind,
+    StraightFlush,
+    RoyalFlush,
+}
+
+impl fmt::Display for HandType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HandType::HighCard => write!(f, "High Card"),
+            HandType::Pair => write!(f, "Pair"),
+            HandType::TwoPair => write!(f, "Two Pair"),
+            HandType::ThreeOfAKind => write!(f, "Three of a Kind"),
+            HandType::Straight => write!(f, "Straight"),
+            HandType::Flush => write!(f, "Flush"),
+            HandType::FullHouse => write!(f, "Full House"),
+            HandType::FourOfAKind => write!(f, "Four of a Kind"),
+            HandType::StraightFlush => write!(f, "Straight Flush"),
+            HandType::RoyalFlush => write!(f, "Royal Flush"),
+        }
+    }
+}
+
+impl fmt::Display for Hand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.hand_type())
     }
 }

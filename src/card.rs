@@ -4,8 +4,8 @@ const NUM_CARDS: usize = 52;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Card {
-    pub rank: u8,
-    pub suit: u8,
+    rank: u8,
+    suit: u8,
 }
 
 impl Card {
@@ -20,6 +20,18 @@ impl Card {
         } else {
             None
         }
+    }
+
+    #[must_use]
+    #[inline]
+    pub const fn rank(self) -> u8 {
+        self.rank
+    }
+
+    #[must_use]
+    #[inline]
+    pub const fn suit(self) -> u8 {
+        self.suit
     }
 
     #[must_use]

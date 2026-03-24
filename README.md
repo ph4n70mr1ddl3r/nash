@@ -1,11 +1,10 @@
 # Nash - Heads-Up NLHE Solver Framework
 
-A heads-up No-Limit Hold'em solver using the CFR+ algorithm with card abstraction, action abstraction, and strategy serialization.
+A heads-up No-Limit Hold'em solver using the CFR+ algorithm with action abstraction and strategy serialization.
 
 ## Features
 
 - **CFR+ Algorithm**: Counterfactual Regret Minimization with linear weighting
-- **Card Abstraction**: Hand bucketing for reduced game tree complexity
 - **Action Abstraction**: Configurable bet/raise sizes
 - **Strategy Serialization**: Save/load strategies using bincode format
 - **Parallel Processing**: Multi-threaded CFR iterations via rayon
@@ -24,6 +23,8 @@ cargo test --release
 ## Configuration
 
 ```rust
+use nash::{GameConfig, CFRConfig, CFRSolver};
+
 let game_config = GameConfig {
     initial_stacks: [1000, 1000],
     small_blind: 1,
@@ -38,11 +39,21 @@ let cfr_config = CFRConfig {
     save_path: Some("strategy.bin".to_string()),
     use_chance_sampling: true,
 };
+
+let mut solver = CFRSolver::new(game_config, cfr_config);
+solver.solve();
 ```
 
 ## Project Structure
 
-- `main.rs` - Entry point with all game logic, CFR solver, and hand evaluation
+- `src/lib.rs` - Library exports
+- `src/card.rs` - Card, Deck, CardSet types
+- `src/config.rs` - GameConfig, CFRConfig
+- `src/game.rs` - GameState, Action, Player, Street, InfoSet
+- `src/hand.rs` - Hand evaluation
+- `src/strategy.rs` - Strategy storage and serialization
+- `src/solver.rs` - CFRSolver implementation
+- `src/main.rs` - Entry point
 
 ## Notes
 

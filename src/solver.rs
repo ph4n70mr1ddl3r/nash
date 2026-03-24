@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -157,7 +159,6 @@ impl CFRSolver {
         });
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
         strategy: &Arc<Strategy>,
         state: &GameState,

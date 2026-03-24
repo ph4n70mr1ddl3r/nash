@@ -49,7 +49,7 @@ impl StrategyEntry {
     #[inline]
     pub fn get_strategy(&self, out: &mut [f64]) {
         let len = out.len().min(self.num_actions as usize);
-        debug_assert!(len == self.num_actions as usize, "output buffer too small");
+        assert!(len == self.num_actions as usize, "output buffer too small");
         let mut sum = 0.0;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
             let s = regret.max(0.0);

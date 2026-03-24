@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -148,18 +150,13 @@ impl GameState {
     #[inline]
     pub fn betting_round_closed(&self) -> bool {
         let round_actions = &self.history[self.round_start..];
-        if round_actions.is_empty() {
+        let Some(last) = round_actions.last() else {
             return false;
-        }
-        let last = &round_actions[round_actions.len() - 1];
+        };
         match last {
             Action::Call => true,
             Action::Check => {
-                if round_actions.len() < 2 {
-                    return false;
-                }
-                let prev = &round_actions[round_actions.len() - 2];
-                matches!(prev, Action::Check)
+                round_actions.len() >= 2 && round_actions[round_actions.len() - 2] == Action::Check
             }
             _ => false,
         }

@@ -246,6 +246,7 @@ impl CFRSolver {
         1.0 / (self.iteration as f64 + 1.0)
     }
 
+    #[inline]
     fn get_utility_impl(
         state: &GameState,
         hands: &[[Card; 2]],

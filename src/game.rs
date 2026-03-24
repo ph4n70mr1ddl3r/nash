@@ -291,6 +291,7 @@ use crate::card::Card;
 
 impl InfoSet {
     #[must_use]
+    #[inline]
     pub fn from_cards(player: Player, street: Street, hole: &[Card; 2], board: CardSet) -> Self {
         InfoSet {
             player,
@@ -301,6 +302,7 @@ impl InfoSet {
         }
     }
 
+    #[inline]
     pub fn add_action(&mut self, action: &Action) {
         self.history.push(*action);
     }

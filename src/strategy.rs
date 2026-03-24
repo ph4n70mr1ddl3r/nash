@@ -49,6 +49,7 @@ impl StrategyEntry {
     #[inline]
     pub fn get_strategy(&self, out: &mut [f64]) {
         let len = out.len().min(self.num_actions as usize);
+        debug_assert!(len == self.num_actions as usize, "output buffer too small");
         let mut sum = 0.0;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
             let s = regret.max(0.0);
@@ -91,6 +92,7 @@ impl Strategy {
         }
     }
 
+    #[inline]
     pub fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
         use dashmap::mapref::entry::Entry;
         match self.entries.entry(info_set.clone()) {
@@ -105,6 +107,7 @@ impl Strategy {
         }
     }
 
+    #[inline]
     pub fn update_entry(
         &self,
         info_set: &InfoSet,

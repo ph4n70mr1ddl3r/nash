@@ -10,6 +10,11 @@ fn main() {
         min_bet: 2,
     };
 
+    if let Err(e) = game_config.validate() {
+        eprintln!("Invalid game configuration: {e}");
+        std::process::exit(1);
+    }
+
     let cfr_config = CFRConfig {
         num_iterations: 100,
         log_interval: 10,

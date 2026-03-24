@@ -110,6 +110,7 @@ impl Hand {
         rank
     }
 
+    #[inline]
     fn best_kicker(counts: &[u8; 15], excluded: &[u8]) -> u8 {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count > 0 && !excluded.contains(&(rank as u8)) {
@@ -119,6 +120,7 @@ impl Hand {
         0
     }
 
+    #[inline]
     fn best_kickers(counts: &[u8; 15], excluded: &[u8], n: usize) -> Vec<u8> {
         let mut kickers = Vec::with_capacity(n);
         for (rank, &count) in counts.iter().enumerate().rev() {
@@ -132,6 +134,7 @@ impl Hand {
         kickers
     }
 
+    #[inline]
     fn find_flush(cards: &[Card]) -> Option<Vec<Card>> {
         let mut suit_counts = [0usize; 4];
         for card in cards {
@@ -150,6 +153,7 @@ impl Hand {
         None
     }
 
+    #[inline]
     fn find_straight(cards: &[Card]) -> Option<u8> {
         let mut rank_mask: u32 = 0;
         for card in cards {
@@ -169,10 +173,12 @@ impl Hand {
         None
     }
 
+    #[inline]
     fn is_straight_flush(flush_cards: &[Card], straight_high: u8) -> bool {
         Self::find_straight(flush_cards) == Some(straight_high)
     }
 
+    #[inline]
     fn count_ranks(ranks: &[u8]) -> [u8; 15] {
         let mut counts = [0u8; 15];
         for &rank in ranks {
@@ -181,6 +187,7 @@ impl Hand {
         counts
     }
 
+    #[inline]
     fn find_four_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate() {
             if count == 4 {
@@ -190,6 +197,7 @@ impl Hand {
         None
     }
 
+    #[inline]
     fn find_full_house(counts: &[u8; 15]) -> Option<(u8, u8)> {
         let mut trips = None;
         let mut pair = None;
@@ -203,6 +211,7 @@ impl Hand {
         trips.zip(pair)
     }
 
+    #[inline]
     fn find_three_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 3 {
@@ -212,6 +221,7 @@ impl Hand {
         None
     }
 
+    #[inline]
     fn find_two_pair(counts: &[u8; 15]) -> Option<(u8, u8)> {
         let mut first: Option<u8> = None;
         let mut second: Option<u8> = None;
@@ -228,6 +238,7 @@ impl Hand {
         first.zip(second)
     }
 
+    #[inline]
     fn find_pair(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 2 {

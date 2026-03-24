@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 const NUM_CARDS: usize = 52;
@@ -37,6 +39,27 @@ impl Card {
     #[must_use]
     pub fn all() -> &'static [Card; NUM_CARDS] {
         &ALL_CARDS
+    }
+}
+
+impl fmt::Display for Card {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let rank_char = match self.rank {
+            14 => 'A',
+            13 => 'K',
+            12 => 'Q',
+            11 => 'J',
+            10 => 'T',
+            r => char::from(b'0' + r),
+        };
+        let suit_char = match self.suit {
+            0 => 'c',
+            1 => 'd',
+            2 => 'h',
+            3 => 's',
+            _ => '?',
+        };
+        write!(f, "{}{}", rank_char, suit_char)
     }
 }
 

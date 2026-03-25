@@ -4,7 +4,12 @@
 //! weighting (CFR+) algorithm for solving heads-up No-Limit Hold'em poker.
 
 #![forbid(unsafe_code)]
-#![warn(missing_docs, rust_2018_idioms, clippy::all)]
+#![warn(
+    missing_docs,
+    missing_debug_implementations,
+    rust_2018_idioms,
+    clippy::all
+)]
 
 pub mod card;
 pub mod config;

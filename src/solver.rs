@@ -13,6 +13,7 @@ use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
 /// CFR+ solver for heads-up No-Limit Hold'em.
+#[derive(Debug)]
 pub struct CFRSolver {
     /// The computed strategy (shared for concurrent access).
     pub strategy: Arc<Strategy>,
@@ -145,11 +146,10 @@ impl CFRSolver {
                         let mut remaining: Vec<Card> = all_cards
                             .iter()
                             .enumerate()
-                            .filter(|(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
+                            .filter(|&(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
                             .map(|(_, c)| *c)
                             .collect();
 
-                        use rand::seq::SliceRandom;
                         let (shuffled, _) = remaining.partial_shuffle(&mut rng, 5);
                         let board: Vec<Card> = shuffled.to_vec();
 

@@ -308,10 +308,7 @@ impl GameState {
             new_state.current_player = Player::SB;
             new_state.round_start = new_state.history.len();
         } else {
-            new_state.current_player = match self.current_player {
-                Player::SB => Player::BB,
-                Player::BB => Player::SB,
-            };
+            new_state.current_player = self.current_player.opponent();
         }
         new_state
     }

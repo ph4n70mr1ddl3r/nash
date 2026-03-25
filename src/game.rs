@@ -10,6 +10,7 @@ use crate::config::GameConfig;
 pub const NUM_PLAYERS: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Player {
     SB,
     BB,
@@ -43,6 +44,7 @@ impl fmt::Display for Player {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Street {
     Preflop,
     Flop,
@@ -75,6 +77,7 @@ impl fmt::Display for Street {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Action {
     Fold,
     Check,

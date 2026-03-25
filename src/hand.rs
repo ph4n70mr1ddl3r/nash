@@ -83,7 +83,7 @@ impl Hand {
         }
 
         if let Some(rank) = Self::find_three_of_a_kind(&counts) {
-            let kickers = Self::best_kickers(&counts, &[rank], 2);
+            let kickers = Self::best_kickers_fixed::<2>(&counts, &[rank], 2);
             return Self::hand_rank(3, &[rank, kickers[0], kickers[1]]);
         }
 
@@ -93,7 +93,7 @@ impl Hand {
         }
 
         if let Some(rank) = Self::find_pair(&counts) {
-            let kickers = Self::best_kickers(&counts, &[rank], 3);
+            let kickers = Self::best_kickers_fixed::<3>(&counts, &[rank], 3);
             return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
         }
 
@@ -120,13 +120,16 @@ impl Hand {
         0
     }
 
+    #[must_use]
     #[inline]
-    fn best_kickers(counts: &[u8; 15], excluded: &[u8], n: usize) -> Vec<u8> {
-        let mut kickers = Vec::with_capacity(n);
+    fn best_kickers_fixed<const N: usize>(counts: &[u8; 15], excluded: &[u8], n: usize) -> [u8; N] {
+        let mut kickers = [0u8; N];
+        let mut found = 0;
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count > 0 && !excluded.contains(&(rank as u8)) {
-                kickers.push(rank as u8);
-                if kickers.len() >= n {
+                kickers[found] = rank as u8;
+                found += 1;
+                if found >= n || found >= N {
                     break;
                 }
             }
@@ -250,6 +253,7 @@ impl Hand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum HandType {
     HighCard,
     Pair,

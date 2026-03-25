@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct GameConfig {
     pub initial_stacks: [u64; 2],
     pub small_blind: u64,
@@ -8,7 +9,8 @@ pub struct GameConfig {
     pub min_bet: u64,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Copy, Error)]
+#[non_exhaustive]
 pub enum ConfigError {
     #[error("Stacks must be positive")]
     InvalidStacks,
@@ -50,7 +52,7 @@ impl Default for GameConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CFRConfig {
     pub num_iterations: usize,
     pub log_interval: usize,

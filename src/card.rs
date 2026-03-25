@@ -132,6 +132,7 @@ impl Deck {
         }
     }
 
+    #[inline]
     pub fn shuffle(&mut self, rng: &mut impl rand::Rng) {
         use rand::seq::SliceRandom;
         self.cards.shuffle(rng);

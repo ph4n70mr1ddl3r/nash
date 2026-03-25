@@ -37,18 +37,31 @@ impl Hand {
     #[must_use]
     #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
-        let mut all_cards: Vec<Card> = hole.iter().copied().chain(board.iter().copied()).collect();
-        all_cards.sort_by_key(|b| std::cmp::Reverse(b.rank()));
+        let mut all_cards: [Card; 7] = [
+            hole[0],
+            hole[1],
+            Card::placeholder(),
+            Card::placeholder(),
+            Card::placeholder(),
+            Card::placeholder(),
+            Card::placeholder(),
+        ];
+        let len = 2 + board.len().min(5);
+        all_cards[2..len].copy_from_slice(&board[..len - 2]);
+        all_cards[..len].sort_by_key(|b| std::cmp::Reverse(b.rank()));
 
-        let rank = Self::evaluate_hand_rank(&all_cards);
+        let rank = Self::evaluate_hand_rank(&all_cards[..len]);
         Hand { rank }
     }
 
     #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         if cards.len() < 5 {
-            let kickers: Vec<u8> = cards.iter().map(|c| c.rank()).collect();
-            return Self::hand_rank(0, &kickers);
+            let mut kickers = [0u8; 5];
+            for (i, c) in cards.iter().enumerate() {
+                kickers[i] = c.rank();
+            }
+            return Self::hand_rank(0, &kickers[..cards.len()]);
         }
 
         let flush = Self::find_flush(cards);

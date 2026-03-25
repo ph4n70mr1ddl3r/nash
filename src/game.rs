@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -57,7 +55,7 @@ pub enum Street {
 impl Street {
     #[must_use]
     #[inline]
-    pub fn board_card_count(self) -> usize {
+    pub const fn board_card_count(self) -> usize {
         match self {
             Street::Preflop => 0,
             Street::Flop => 3,

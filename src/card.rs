@@ -40,6 +40,11 @@ impl Card {
     pub fn all() -> &'static [Card; NUM_CARDS] {
         &ALL_CARDS
     }
+
+    #[inline]
+    pub(crate) const fn placeholder() -> Self {
+        Card { rank: 0, suit: 0 }
+    }
 }
 
 impl fmt::Display for Card {

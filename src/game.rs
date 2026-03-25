@@ -4,7 +4,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::card::CardSet;
+use crate::card::{Card, CardSet};
 use crate::config::GameConfig;
 
 pub const NUM_PLAYERS: usize = 2;
@@ -283,8 +283,6 @@ pub struct InfoSet {
     pub board: CardSet,
     pub history: Vec<Action>,
 }
-
-use crate::card::Card;
 
 impl InfoSet {
     #[must_use]

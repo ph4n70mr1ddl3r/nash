@@ -80,6 +80,7 @@ impl StrategyEntry {
     }
 }
 
+#[derive(Debug)]
 pub struct Strategy {
     entries: DashMap<InfoSet, StrategyEntry>,
 }

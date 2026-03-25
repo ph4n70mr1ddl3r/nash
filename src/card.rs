@@ -159,12 +159,10 @@ impl Deck {
     }
 
     pub fn deal(&mut self, n: usize) -> Vec<Card> {
-        let mut result = Vec::with_capacity(n);
-        for _ in 0..n {
-            if let Some(card) = self.deal_one() {
-                result.push(card);
-            }
-        }
+        let available = self.cards.len().saturating_sub(self.pos);
+        let count = n.min(available);
+        let result = self.cards[self.pos..self.pos + count].to_vec();
+        self.pos += count;
         result
     }
 }

@@ -142,7 +142,8 @@ impl CFRSolver {
                             .map(|(_, c)| *c)
                             .collect();
 
-                        remaining.shuffle(&mut rng);
+                        use rand::seq::SliceRandom;
+                        remaining.partial_shuffle(&mut rng, 5);
                         let board: Vec<Card> = remaining.into_iter().take(5).collect();
 
                         let hands = [hole_sb, hole_bb];

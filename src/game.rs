@@ -18,6 +18,7 @@ pub enum Player {
 
 impl Player {
     #[must_use]
+    #[inline]
     pub const fn index(self) -> usize {
         match self {
             Player::SB => 0,
@@ -26,6 +27,7 @@ impl Player {
     }
 
     #[must_use]
+    #[inline]
     pub const fn opponent(self) -> Self {
         match self {
             Player::SB => Player::BB,
@@ -262,7 +264,7 @@ impl GameState {
                 Street::Preflop => Street::Flop,
                 Street::Flop => Street::Turn,
                 Street::Turn => Street::River,
-                Street::River => Street::River,
+                Street::River => unreachable!(),
             };
             new_state.last_bet = 0;
             new_state.min_raise = new_state.config.min_bet;

@@ -2,6 +2,8 @@ use std::fmt;
 
 use crate::card::Card;
 
+const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hand {
     rank: u32,
@@ -170,7 +172,7 @@ impl Hand {
             }
         }
 
-        if rank_mask & 0x403C == 0x403C {
+        if rank_mask & WHEEL_STRAIGHT_MASK == WHEEL_STRAIGHT_MASK {
             return Some(5);
         }
         None

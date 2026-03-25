@@ -66,13 +66,7 @@ impl fmt::Display for Card {
             10 => 'T',
             r => char::from(b'0' + r),
         };
-        let suit_char = match self.suit {
-            0 => 'c',
-            1 => 'd',
-            2 => 'h',
-            3 => 's',
-            _ => '?',
-        };
+        let suit_char = ['c', 'd', 'h', 's'][self.suit as usize];
         write!(f, "{}{}", rank_char, suit_char)
     }
 }

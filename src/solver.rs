@@ -1,7 +1,5 @@
 //! CFR+ algorithm implementation.
 
-#![allow(clippy::too_many_arguments)]
-
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -152,8 +150,8 @@ impl CFRSolver {
                             .collect();
 
                         use rand::seq::SliceRandom;
-                        remaining.partial_shuffle(&mut rng, 5);
-                        let board: Vec<Card> = remaining.into_iter().take(5).collect();
+                        let (shuffled, _) = remaining.partial_shuffle(&mut rng, 5);
+                        let board: Vec<Card> = shuffled.to_vec();
 
                         let hands = [hole_sb, hole_bb];
                         let state = GameState::new(config);
@@ -174,6 +172,7 @@ impl CFRSolver {
         });
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
         strategy: &Arc<Strategy>,
         state: &GameState,

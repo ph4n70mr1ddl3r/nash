@@ -21,6 +21,7 @@ pub enum ConfigError {
 }
 
 impl GameConfig {
+    #[must_use = "validate() returns a Result that should be checked"]
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.initial_stacks.contains(&0) {
             return Err(ConfigError::InvalidStacks);

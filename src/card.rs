@@ -103,6 +103,18 @@ impl CardSet {
     pub fn as_slice(&self) -> &[Card] {
         &self.cards[..self.len as usize]
     }
+
+    #[must_use]
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    #[must_use]
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 #[derive(Debug, Clone)]

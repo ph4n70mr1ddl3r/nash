@@ -28,7 +28,7 @@ impl Hand {
             7 => HandType::FourOfAKind,
             8 => HandType::StraightFlush,
             9 => HandType::RoyalFlush,
-            _ => unreachable!("hand rank type byte must be 0-9"),
+            _ => HandType::HighCard,
         }
     }
 

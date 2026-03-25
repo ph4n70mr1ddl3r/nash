@@ -282,7 +282,16 @@ mod tests {
     fn test_card_set() {
         let cards = vec![card(14, 0), card(13, 1), card(12, 2)];
         let set = CardSet::from_cards(&cards);
+        assert_eq!(set.len(), 3);
         assert_eq!(set.as_slice().len(), 3);
+        assert!(!set.is_empty());
+    }
+
+    #[test]
+    fn test_card_set_empty() {
+        let set = CardSet::from_cards(&[]);
+        assert_eq!(set.len(), 0);
+        assert!(set.is_empty());
     }
 
     #[test]

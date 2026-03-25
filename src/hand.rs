@@ -7,7 +7,7 @@ use crate::card::Card;
 const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 
 /// A evaluated poker hand with a comparable rank value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Hand {
     rank: u32,
 }
@@ -41,7 +41,6 @@ impl Hand {
 
     /// Evaluates a poker hand from hole cards and board.
     #[must_use]
-    #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
         let mut all_cards: [Card; 7] = [
             hole[0],
@@ -82,8 +81,14 @@ impl Hand {
             }
         }
 
-        let ranks: Vec<u8> = cards.iter().map(|c| c.rank()).collect();
-        let counts = Self::count_ranks(&ranks);
+        let ranks: [u8; 7] = {
+            let mut arr = [0u8; 7];
+            for (i, c) in cards.iter().enumerate() {
+                arr[i] = c.rank();
+            }
+            arr
+        };
+        let counts = Self::count_ranks(&ranks[..cards.len()]);
 
         if let Some(rank) = Self::find_four_of_a_kind(&counts) {
             let kicker = Self::best_kicker(&counts, &[rank]);
@@ -95,7 +100,10 @@ impl Hand {
         }
 
         if let Some(flush_cards) = flush {
-            let kickers: Vec<u8> = flush_cards.iter().take(5).map(|c| c.rank()).collect();
+            let mut kickers = [0u8; 5];
+            for (i, c) in flush_cards.iter().take(5).enumerate() {
+                kickers[i] = c.rank();
+            }
             return Self::hand_rank(5, &kickers);
         }
 
@@ -118,7 +126,10 @@ impl Hand {
             return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
         }
 
-        let kickers: Vec<u8> = cards.iter().take(5).map(|c| c.rank()).collect();
+        let mut kickers = [0u8; 5];
+        for (i, c) in cards.iter().take(5).enumerate() {
+            kickers[i] = c.rank();
+        }
         Self::hand_rank(0, &kickers)
     }
 

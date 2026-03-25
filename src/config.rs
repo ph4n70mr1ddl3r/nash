@@ -70,7 +70,7 @@ impl Default for GameConfig {
 }
 
 /// Errors that can occur when validating CFR configuration.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, Copy, Error)]
 #[non_exhaustive]
 pub enum CFRConfigError {
     /// Number of iterations must be positive.

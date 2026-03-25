@@ -56,6 +56,12 @@ impl Card {
     }
 }
 
+impl Default for Card {
+    fn default() -> Self {
+        Self::placeholder()
+    }
+}
+
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let rank_char = match self.rank {
@@ -137,6 +143,12 @@ impl CardSet {
     #[inline]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
+    }
+}
+
+impl Default for CardSet {
+    fn default() -> Self {
+        Self::empty()
     }
 }
 

@@ -64,8 +64,8 @@ impl StrategyEntry {
     /// Computes the current strategy from regrets (regret matching).
     #[inline]
     pub fn get_strategy(&self, out: &mut [f64]) {
-        let len = out.len().min(self.num_actions as usize);
-        debug_assert!(len == self.num_actions as usize, "output buffer too small");
+        let num_actions = self.num_actions as usize;
+        let len = out.len().min(num_actions);
         let mut sum = 0.0;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
             let s = regret.max(0.0);
@@ -77,7 +77,7 @@ impl StrategyEntry {
                 *s /= sum;
             }
         } else {
-            let uniform = 1.0 / len as f64;
+            let uniform = 1.0 / num_actions as f64;
             for s in &mut out[..len] {
                 *s = uniform;
             }

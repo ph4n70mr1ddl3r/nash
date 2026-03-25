@@ -88,6 +88,15 @@ pub struct CardSet {
 impl CardSet {
     #[must_use]
     #[inline]
+    pub const fn empty() -> Self {
+        CardSet {
+            cards: [Card { rank: 0, suit: 0 }; 5],
+            len: 0,
+        }
+    }
+
+    #[must_use]
+    #[inline]
     pub fn from_cards(cards: &[Card]) -> Self {
         let mut arr = [Card { rank: 0, suit: 0 }; 5];
         let len = cards.len().min(5);

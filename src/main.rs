@@ -23,6 +23,11 @@ fn main() {
         use_chance_sampling: true,
     };
 
+    if let Err(e) = cfr_config.validate() {
+        eprintln!("Invalid CFR configuration: {e}");
+        std::process::exit(1);
+    }
+
     let mut solver = CFRSolver::new(game_config, cfr_config);
     solver.solve();
 }

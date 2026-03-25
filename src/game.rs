@@ -178,7 +178,7 @@ impl GameState {
     #[inline]
     #[must_use]
     pub fn legal_actions(&self) -> Vec<Action> {
-        let mut actions = Vec::new();
+        let mut actions = Vec::with_capacity(6);
         actions.push(Action::Fold);
 
         let remaining = self.config.initial_stacks[self.current_player.index()]

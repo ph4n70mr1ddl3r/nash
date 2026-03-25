@@ -31,6 +31,11 @@ impl CFRSolver {
         }
     }
 
+    #[must_use]
+    pub fn iteration(&self) -> usize {
+        self.iteration
+    }
+
     pub fn solve(&mut self) {
         let start = Instant::now();
 

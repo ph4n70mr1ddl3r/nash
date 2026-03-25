@@ -52,6 +52,17 @@ impl Default for GameConfig {
     }
 }
 
+#[derive(Debug, Clone, Error)]
+#[non_exhaustive]
+pub enum CFRConfigError {
+    #[error("num_iterations must be positive")]
+    InvalidNumIterations,
+    #[error("log_interval must be positive")]
+    InvalidLogInterval,
+    #[error("save_interval must be positive")]
+    InvalidSaveInterval,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CFRConfig {
     pub num_iterations: usize,
@@ -59,6 +70,22 @@ pub struct CFRConfig {
     pub save_interval: usize,
     pub save_path: Option<String>,
     pub use_chance_sampling: bool,
+}
+
+impl CFRConfig {
+    #[must_use = "validate() returns a Result that should be checked"]
+    pub fn validate(&self) -> Result<(), CFRConfigError> {
+        if self.num_iterations == 0 {
+            return Err(CFRConfigError::InvalidNumIterations);
+        }
+        if self.log_interval == 0 {
+            return Err(CFRConfigError::InvalidLogInterval);
+        }
+        if self.save_interval == 0 {
+            return Err(CFRConfigError::InvalidSaveInterval);
+        }
+        Ok(())
+    }
 }
 
 impl Default for CFRConfig {

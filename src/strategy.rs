@@ -94,6 +94,16 @@ impl Strategy {
         }
     }
 
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     #[inline]
     pub fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
         use dashmap::mapref::entry::Entry;

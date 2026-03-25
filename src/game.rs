@@ -26,8 +26,8 @@ impl Player {
     #[inline]
     pub const fn index(self) -> usize {
         match self {
-            Player::SB => 0,
-            Player::BB => 1,
+            Self::SB => 0,
+            Self::BB => 1,
         }
     }
 
@@ -36,8 +36,8 @@ impl Player {
     #[inline]
     pub const fn opponent(self) -> Self {
         match self {
-            Player::SB => Player::BB,
-            Player::BB => Player::SB,
+            Self::SB => Self::BB,
+            Self::BB => Self::SB,
         }
     }
 }
@@ -45,8 +45,8 @@ impl Player {
 impl fmt::Display for Player {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Player::SB => write!(f, "SB"),
-            Player::BB => write!(f, "BB"),
+            Self::SB => write!(f, "SB"),
+            Self::BB => write!(f, "BB"),
         }
     }
 }
@@ -71,10 +71,10 @@ impl Street {
     #[inline]
     pub const fn board_card_count(self) -> usize {
         match self {
-            Street::Preflop => 0,
-            Street::Flop => 3,
-            Street::Turn => 4,
-            Street::River => 5,
+            Self::Preflop => 0,
+            Self::Flop => 3,
+            Self::Turn => 4,
+            Self::River => 5,
         }
     }
 }
@@ -82,10 +82,10 @@ impl Street {
 impl fmt::Display for Street {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Street::Preflop => write!(f, "Preflop"),
-            Street::Flop => write!(f, "Flop"),
-            Street::Turn => write!(f, "Turn"),
-            Street::River => write!(f, "River"),
+            Self::Preflop => write!(f, "Preflop"),
+            Self::Flop => write!(f, "Flop"),
+            Self::Turn => write!(f, "Turn"),
+            Self::River => write!(f, "River"),
         }
     }
 }
@@ -111,12 +111,12 @@ pub enum Action {
 impl fmt::Display for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Action::Fold => write!(f, "Fold"),
-            Action::Check => write!(f, "Check"),
-            Action::Call => write!(f, "Call"),
-            Action::Bet(amount) => write!(f, "Bet({})", amount),
-            Action::Raise(amount) => write!(f, "Raise({})", amount),
-            Action::AllIn => write!(f, "AllIn"),
+            Self::Fold => write!(f, "Fold"),
+            Self::Check => write!(f, "Check"),
+            Self::Call => write!(f, "Call"),
+            Self::Bet(amount) => write!(f, "Bet({amount})"),
+            Self::Raise(amount) => write!(f, "Raise({amount})"),
+            Self::AllIn => write!(f, "AllIn"),
         }
     }
 }
@@ -147,7 +147,7 @@ impl GameState {
     /// Creates a new game state with blinds posted.
     #[must_use]
     pub fn new(config: GameConfig) -> Self {
-        GameState {
+        Self {
             street: Street::Preflop,
             current_player: Player::SB,
             pot: config.small_blind + config.big_blind,
@@ -334,7 +334,7 @@ impl InfoSet {
     #[must_use]
     #[inline]
     pub fn from_cards(player: Player, street: Street, hole: &[Card; 2], board: CardSet) -> Self {
-        InfoSet {
+        Self {
             player,
             street,
             hole: *hole,

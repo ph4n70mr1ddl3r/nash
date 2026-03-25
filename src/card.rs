@@ -24,7 +24,7 @@ impl Card {
     #[must_use]
     pub fn new(rank: u8, suit: u8) -> Option<Self> {
         if (Self::MIN_RANK..=Self::MAX_RANK).contains(&rank) && suit < Self::NUM_SUITS {
-            Some(Card { rank, suit })
+            Some(Self { rank, suit })
         } else {
             None
         }
@@ -46,13 +46,13 @@ impl Card {
 
     /// Returns a static reference to all 52 cards in the deck.
     #[must_use]
-    pub fn all() -> &'static [Card; NUM_CARDS] {
+    pub fn all() -> &'static [Self; NUM_CARDS] {
         &ALL_CARDS
     }
 
     #[inline]
     pub(crate) const fn placeholder() -> Self {
-        Card { rank: 0, suit: 0 }
+        Self { rank: 0, suit: 0 }
     }
 }
 
@@ -73,7 +73,7 @@ impl fmt::Display for Card {
             r => char::from(b'0' + r),
         };
         let suit_char = ['c', 'd', 'h', 's'][self.suit as usize];
-        write!(f, "{}{}", rank_char, suit_char)
+        write!(f, "{rank_char}{suit_char}")
     }
 }
 
@@ -105,8 +105,8 @@ impl CardSet {
     #[must_use]
     #[inline]
     pub const fn empty() -> Self {
-        CardSet {
-            cards: [Card { rank: 0, suit: 0 }; 5],
+        Self {
+            cards: [Card::placeholder(); 5],
             len: 0,
         }
     }
@@ -114,11 +114,12 @@ impl CardSet {
     /// Creates a card set from a slice of cards (max 5 cards).
     #[must_use]
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn from_cards(cards: &[Card]) -> Self {
-        let mut arr = [Card { rank: 0, suit: 0 }; 5];
+        let mut arr = [Card::placeholder(); 5];
         let len = cards.len().min(5);
         arr[..len].copy_from_slice(&cards[..len]);
-        CardSet {
+        Self {
             cards: arr,
             len: len as u8,
         }
@@ -163,7 +164,7 @@ impl Deck {
     /// Creates a new deck with all 52 cards in order.
     #[must_use]
     pub fn new() -> Self {
-        Deck {
+        Self {
             cards: Card::all().to_vec(),
             pos: 0,
         }

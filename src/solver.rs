@@ -29,7 +29,7 @@ impl CFRSolver {
     #[must_use]
     pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Self {
         let strategy = Arc::new(Strategy::new());
-        CFRSolver {
+        Self {
             config: game_config,
             cfr_config,
             strategy,
@@ -39,11 +39,12 @@ impl CFRSolver {
 
     /// Returns the current iteration number.
     #[must_use]
-    pub fn iteration(&self) -> usize {
+    pub const fn iteration(&self) -> usize {
         self.iteration
     }
 
     /// Runs the CFR+ algorithm for the configured number of iterations.
+    #[allow(clippy::cast_precision_loss)]
     pub fn solve(&mut self) {
         let start = Instant::now();
 
@@ -85,7 +86,7 @@ impl CFRSolver {
         info!("CFR+ completed in {:?}", total);
     }
 
-    fn run_iteration(&mut self, iter_weight: f64) {
+    fn run_iteration(&self, iter_weight: f64) {
         if self.cfr_config.use_chance_sampling {
             self.run_iteration_sampled(iter_weight);
         } else {
@@ -257,10 +258,12 @@ impl CFRSolver {
         node_value
     }
 
+    #[allow(clippy::cast_precision_loss)]
     fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)
     }
 
+    #[allow(clippy::cast_precision_loss)]
     #[inline]
     fn get_utility_impl(
         state: &GameState,

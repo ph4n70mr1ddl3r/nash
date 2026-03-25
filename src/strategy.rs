@@ -1,4 +1,4 @@
-//! CFR strategy storage with concurrent DashMap access.
+//! CFR strategy storage with concurrent `DashMap` access.
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -35,7 +35,7 @@ pub enum StrategyError {
 
 impl From<bincode::Error> for StrategyError {
     fn from(e: bincode::Error) -> Self {
-        StrategyError::Serialization(e.to_string())
+        Self::Serialization(e.to_string())
     }
 }
 
@@ -53,8 +53,9 @@ pub struct StrategyEntry {
 impl StrategyEntry {
     /// Creates a new strategy entry with zero regrets.
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn new(num_actions: usize) -> Self {
-        StrategyEntry {
+        Self {
             regrets: [0.0; MAX_ACTIONS],
             strategy_sum: [0.0; MAX_ACTIONS],
             num_actions: num_actions.min(MAX_ACTIONS) as u8,
@@ -63,6 +64,7 @@ impl StrategyEntry {
 
     /// Computes the current strategy from regrets (regret matching).
     #[inline]
+    #[allow(clippy::cast_precision_loss)]
     pub fn get_strategy(&self, out: &mut [f64]) {
         let num_actions = self.num_actions as usize;
         let len = out.len().min(num_actions);
@@ -97,7 +99,7 @@ impl StrategyEntry {
     }
 }
 
-/// Thread-safe strategy storage using DashMap.
+/// Thread-safe strategy storage using `DashMap`.
 #[derive(Debug)]
 pub struct Strategy {
     entries: DashMap<InfoSet, StrategyEntry>,
@@ -107,7 +109,7 @@ impl Strategy {
     /// Creates a new empty strategy.
     #[must_use]
     pub fn new() -> Self {
-        Strategy {
+        Self {
             entries: DashMap::new(),
         }
     }
@@ -157,6 +159,7 @@ impl Strategy {
 
     /// Returns statistics about the stored strategy.
     #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
         let base_size = std::mem::size_of::<InfoSet>()
@@ -197,7 +200,7 @@ impl Strategy {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)?;
-        let strategy = Strategy::new();
+        let strategy = Self::new();
         for (key, value) in entries {
             strategy.entries.insert(key, value);
         }

@@ -23,7 +23,7 @@ impl Hand {
     /// Returns the type of hand (pair, flush, etc.).
     #[must_use]
     #[inline]
-    pub fn hand_type(&self) -> HandType {
+    pub const fn hand_type(&self) -> HandType {
         match self.rank >> 24 {
             0 => HandType::HighCard,
             1 => HandType::Pair,
@@ -56,7 +56,7 @@ impl Hand {
         all_cards[..len].sort_by_key(|b| std::cmp::Reverse(b.rank()));
 
         let rank = Self::evaluate_hand_rank(&all_cards[..len]);
-        Hand { rank }
+        Self { rank }
     }
 
     #[inline]
@@ -134,15 +134,17 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_lossless)]
     fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
         let mut rank = hand_type << 24;
         for (i, &v) in values.iter().enumerate() {
-            rank += (v as u32) << (20 - i * 4);
+            rank += u32::from(v) << (20 - i * 4);
         }
         rank
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn best_kicker(counts: &[u8; 15], excluded: &[u8]) -> u8 {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count > 0 && !excluded.contains(&(rank as u8)) {
@@ -154,6 +156,7 @@ impl Hand {
 
     #[must_use]
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn best_kickers_fixed<const N: usize>(counts: &[u8; 15], excluded: &[u8]) -> [u8; N] {
         let mut kickers = [0u8; N];
         let mut found = 0;
@@ -223,6 +226,7 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn find_four_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate() {
             if count == 4 {
@@ -233,6 +237,7 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn find_full_house(counts: &[u8; 15]) -> Option<(u8, u8)> {
         let mut trips = None;
         let mut pair = None;
@@ -247,6 +252,7 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn find_three_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 3 {
@@ -257,6 +263,7 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn find_two_pair(counts: &[u8; 15]) -> Option<(u8, u8)> {
         let mut first: Option<u8> = None;
         let mut second: Option<u8> = None;
@@ -274,6 +281,7 @@ impl Hand {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn find_pair(counts: &[u8; 15]) -> Option<u8> {
         for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 2 {
@@ -313,16 +321,16 @@ pub enum HandType {
 impl fmt::Display for HandType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            HandType::HighCard => write!(f, "High Card"),
-            HandType::Pair => write!(f, "Pair"),
-            HandType::TwoPair => write!(f, "Two Pair"),
-            HandType::ThreeOfAKind => write!(f, "Three of a Kind"),
-            HandType::Straight => write!(f, "Straight"),
-            HandType::Flush => write!(f, "Flush"),
-            HandType::FullHouse => write!(f, "Full House"),
-            HandType::FourOfAKind => write!(f, "Four of a Kind"),
-            HandType::StraightFlush => write!(f, "Straight Flush"),
-            HandType::RoyalFlush => write!(f, "Royal Flush"),
+            Self::HighCard => write!(f, "High Card"),
+            Self::Pair => write!(f, "Pair"),
+            Self::TwoPair => write!(f, "Two Pair"),
+            Self::ThreeOfAKind => write!(f, "Three of a Kind"),
+            Self::Straight => write!(f, "Straight"),
+            Self::Flush => write!(f, "Flush"),
+            Self::FullHouse => write!(f, "Full House"),
+            Self::FourOfAKind => write!(f, "Four of a Kind"),
+            Self::StraightFlush => write!(f, "Straight Flush"),
+            Self::RoyalFlush => write!(f, "Royal Flush"),
         }
     }
 }

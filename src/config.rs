@@ -60,7 +60,7 @@ impl GameConfig {
 
 impl Default for GameConfig {
     fn default() -> Self {
-        GameConfig {
+        Self {
             initial_stacks: [1000, 1000],
             small_blind: 1,
             big_blind: 2,
@@ -106,7 +106,7 @@ impl CFRConfig {
     ///
     /// Returns an error if any configuration value is invalid.
     #[must_use = "validate() returns a Result that should be checked"]
-    pub fn validate(&self) -> Result<(), CFRConfigError> {
+    pub const fn validate(&self) -> Result<(), CFRConfigError> {
         if self.num_iterations == 0 {
             return Err(CFRConfigError::InvalidNumIterations);
         }
@@ -122,7 +122,7 @@ impl CFRConfig {
 
 impl Default for CFRConfig {
     fn default() -> Self {
-        CFRConfig {
+        Self {
             num_iterations: 100,
             log_interval: 10,
             save_interval: 50,

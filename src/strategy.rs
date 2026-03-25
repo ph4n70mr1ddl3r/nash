@@ -69,6 +69,7 @@ impl StrategyEntry {
         let num_actions = self.num_actions as usize;
         let len = out.len().min(num_actions);
         let mut sum = 0.0;
+        let uniform = 1.0 / num_actions as f64;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
             let s = regret.max(0.0);
             *out_val = s;
@@ -79,10 +80,7 @@ impl StrategyEntry {
                 *s /= sum;
             }
         } else {
-            let uniform = 1.0 / num_actions as f64;
-            for s in &mut out[..len] {
-                *s = uniform;
-            }
+            out[..len].fill(uniform);
         }
     }
 

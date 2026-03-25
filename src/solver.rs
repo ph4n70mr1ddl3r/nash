@@ -258,6 +258,11 @@ impl CFRSolver {
         node_value
     }
 
+    /// Returns a placeholder estimate of strategy exploitability.
+    ///
+    /// This is a stub implementation that returns a decreasing value based on
+    /// iteration count. A proper implementation would compute best response
+    /// values against the current strategy.
     #[allow(clippy::cast_precision_loss)]
     fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)

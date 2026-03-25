@@ -164,8 +164,8 @@ impl Hand {
             if count > 0 && !excluded.contains(&(rank as u8)) {
                 kickers[found] = rank as u8;
                 found += 1;
-                if found >= N {
-                    break;
+                if found == N {
+                    return kickers;
                 }
             }
         }

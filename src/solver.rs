@@ -1,3 +1,5 @@
+//! CFR+ algorithm implementation.
+
 #![allow(clippy::too_many_arguments)]
 
 use std::sync::Arc;
@@ -12,14 +14,19 @@ use crate::game::{GameState, InfoSet, Player};
 use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
+/// CFR+ solver for heads-up No-Limit Hold'em.
 pub struct CFRSolver {
+    /// The computed strategy (shared for concurrent access).
     pub strategy: Arc<Strategy>,
+    /// Game configuration.
     pub config: GameConfig,
+    /// CFR solver configuration.
     pub cfr_config: CFRConfig,
     iteration: usize,
 }
 
 impl CFRSolver {
+    /// Creates a new solver with the given configurations.
     #[must_use]
     pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Self {
         let strategy = Arc::new(Strategy::new());
@@ -31,11 +38,13 @@ impl CFRSolver {
         }
     }
 
+    /// Returns the current iteration number.
     #[must_use]
     pub fn iteration(&self) -> usize {
         self.iteration
     }
 
+    /// Runs the CFR+ algorithm for the configured number of iterations.
     pub fn solve(&mut self) {
         let start = Instant::now();
 

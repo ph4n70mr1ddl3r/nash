@@ -1,21 +1,26 @@
+//! Poker hand evaluation (high card through straight flush).
+
 use std::fmt;
 
 use crate::card::Card;
 
 const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 
+/// A evaluated poker hand with a comparable rank value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hand {
     rank: u32,
 }
 
 impl Hand {
+    /// Returns the internal rank value for this hand.
     #[must_use]
     #[inline]
     pub const fn rank(self) -> u32 {
         self.rank
     }
 
+    /// Returns the type of hand (pair, flush, etc.).
     #[must_use]
     #[inline]
     pub fn hand_type(&self) -> HandType {
@@ -34,6 +39,7 @@ impl Hand {
         }
     }
 
+    /// Evaluates a poker hand from hole cards and board.
     #[must_use]
     #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
@@ -267,18 +273,29 @@ impl Hand {
     }
 }
 
+/// The type/category of a poker hand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum HandType {
+    /// High card only.
     HighCard,
+    /// One pair.
     Pair,
+    /// Two pairs.
     TwoPair,
+    /// Three of a kind.
     ThreeOfAKind,
+    /// Straight (5 consecutive cards).
     Straight,
+    /// Flush (5 cards of same suit).
     Flush,
+    /// Full house (three of a kind + pair).
     FullHouse,
+    /// Four of a kind.
     FourOfAKind,
+    /// Straight flush (straight + flush).
     StraightFlush,
+    /// Royal flush (A-K-Q-J-T of same suit).
     RoyalFlush,
 }
 

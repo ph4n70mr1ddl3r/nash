@@ -1,3 +1,5 @@
+//! CFR strategy storage with concurrent DashMap access.
+
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
@@ -7,19 +9,26 @@ use thiserror::Error;
 
 use crate::game::{Action, InfoSet};
 
+/// Maximum number of actions supported at any decision point.
 pub const MAX_ACTIONS: usize = 8;
 
+/// Statistics about the stored strategy.
 #[derive(Debug, Clone, Copy)]
 pub struct StrategyStats {
+    /// Number of information sets stored.
     pub info_sets: usize,
+    /// Estimated memory usage in megabytes.
     pub memory_mb: f64,
 }
 
+/// Errors that can occur when saving/loading strategies.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum StrategyError {
+    /// I/O error during file operations.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(String),
 }
@@ -30,14 +39,19 @@ impl From<bincode::Error> for StrategyError {
     }
 }
 
+/// Strategy data for a single information set.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyEntry {
+    /// Cumulative regrets for each action.
     pub regrets: [f64; MAX_ACTIONS],
+    /// Cumulative strategy sum for each action.
     pub strategy_sum: [f64; MAX_ACTIONS],
+    /// Number of legal actions at this info set.
     pub num_actions: u8,
 }
 
 impl StrategyEntry {
+    /// Creates a new strategy entry with zero regrets.
     #[must_use]
     pub fn new(num_actions: usize) -> Self {
         StrategyEntry {
@@ -47,6 +61,7 @@ impl StrategyEntry {
         }
     }
 
+    /// Computes the current strategy from regrets (regret matching).
     #[inline]
     pub fn get_strategy(&self, out: &mut [f64]) {
         let len = out.len().min(self.num_actions as usize);
@@ -69,6 +84,7 @@ impl StrategyEntry {
         }
     }
 
+    /// Updates regrets and strategy sum for this entry.
     #[inline]
     pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_o: f64, iter_weight: f64) {
         let len = self.num_actions as usize;
@@ -81,12 +97,14 @@ impl StrategyEntry {
     }
 }
 
+/// Thread-safe strategy storage using DashMap.
 #[derive(Debug)]
 pub struct Strategy {
     entries: DashMap<InfoSet, StrategyEntry>,
 }
 
 impl Strategy {
+    /// Creates a new empty strategy.
     #[must_use]
     pub fn new() -> Self {
         Strategy {
@@ -94,16 +112,19 @@ impl Strategy {
         }
     }
 
+    /// Returns the number of information sets stored.
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Returns `true` if no information sets are stored.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Gets or creates the strategy for an info set.
     #[inline]
     pub fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
         use dashmap::mapref::entry::Entry;
@@ -119,6 +140,7 @@ impl Strategy {
         }
     }
 
+    /// Updates the strategy entry for an info set.
     #[inline]
     pub fn update_entry(
         &self,
@@ -133,6 +155,7 @@ impl Strategy {
         }
     }
 
+    /// Returns statistics about the stored strategy.
     #[must_use]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
@@ -148,6 +171,11 @@ impl Strategy {
         }
     }
 
+    /// Saves the strategy to a binary file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if file I/O or serialization fails.
     pub fn save(&self, path: &str) -> Result<(), StrategyError> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
@@ -160,6 +188,11 @@ impl Strategy {
         Ok(())
     }
 
+    /// Loads a strategy from a binary file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if file I/O or deserialization fails.
     pub fn load(path: &str) -> Result<Self, StrategyError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);

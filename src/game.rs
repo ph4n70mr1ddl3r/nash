@@ -124,6 +124,61 @@ impl fmt::Display for Action {
     }
 }
 
+/// Legal actions result with stack allocation (max 6 actions in heads-up NLHE).
+#[derive(Debug, Clone, Copy)]
+pub struct LegalActions {
+    actions: [Action; 6],
+    len: u8,
+}
+
+impl LegalActions {
+    /// Returns the number of legal actions.
+    #[inline]
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Returns `true` if there are no legal actions.
+    #[inline]
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Returns the actions as a slice.
+    #[inline]
+    #[must_use]
+    pub fn as_slice(&self) -> &[Action] {
+        &self.actions[..self.len as usize]
+    }
+
+    /// Returns `true` if the action is in the legal actions.
+    #[inline]
+    #[must_use]
+    pub fn contains(&self, action: &Action) -> bool {
+        self.as_slice().contains(action)
+    }
+
+    /// Returns an iterator over the legal actions.
+    #[inline]
+    pub fn iter(&self) -> std::slice::Iter<'_, Action> {
+        self.as_slice().iter()
+    }
+}
+
+impl IntoIterator for LegalActions {
+    type Item = Action;
+    type IntoIter = std::array::IntoIter<Action, 6>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        let mut arr = [Action::Fold; 6];
+        arr[..self.len as usize].copy_from_slice(&self.actions[..self.len as usize]);
+        arr.into_iter()
+    }
+}
+
 /// Complete state of a poker hand.
 #[derive(Debug, Clone)]
 pub struct GameState {
@@ -149,6 +204,7 @@ pub struct GameState {
 impl GameState {
     /// Creates a new game state with blinds posted.
     #[must_use]
+    #[inline]
     pub fn new(config: GameConfig) -> Self {
         Self {
             street: Street::Preflop,
@@ -214,12 +270,13 @@ impl GameState {
         }
     }
 
-    /// Returns the legal actions for the current player.
+    /// Returns the legal actions for the current player (stack-allocated).
     #[inline]
     #[must_use]
-    pub fn legal_actions(&self) -> Vec<Action> {
-        let mut actions = Vec::with_capacity(6);
-        actions.push(Action::Fold);
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn legal_actions(&self) -> LegalActions {
+        let mut actions = [Action::Fold; 6];
+        let mut len = 1;
 
         let remaining = self.config.initial_stacks[self.current_player.index()]
             .saturating_sub(self.committed[self.current_player.index()]);
@@ -229,28 +286,37 @@ impl GameState {
             .saturating_sub(self.committed[self.current_player.index()]);
 
         if to_call == 0 {
-            actions.push(Action::Check);
+            actions[len] = Action::Check;
+            len += 1;
 
             const POT_BET_FRACTION_NUM: u64 = 1;
             const POT_BET_FRACTION_DENOM: u64 = 2;
             let bet_size =
                 (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
             if bet_size > 0 {
-                actions.push(Action::Bet(bet_size));
+                actions[len] = Action::Bet(bet_size);
+                len += 1;
             }
         } else if to_call <= remaining {
-            actions.push(Action::Call);
+            actions[len] = Action::Call;
+            len += 1;
 
             let raise_size = self.min_raise.max(to_call);
             if raise_size <= remaining && remaining > to_call {
-                actions.push(Action::Raise(raise_size.min(remaining - to_call)));
+                actions[len] = Action::Raise(raise_size.min(remaining - to_call));
+                len += 1;
             }
         }
 
         if remaining > 0 {
-            actions.push(Action::AllIn);
+            actions[len] = Action::AllIn;
+            len += 1;
         }
-        actions
+
+        LegalActions {
+            actions,
+            len: len as u8,
+        }
     }
 
     /// Applies an action and returns the new game state.

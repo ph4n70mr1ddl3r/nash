@@ -108,19 +108,22 @@ impl CFRSolver {
         let mut deck = Deck::new();
         deck.shuffle(&mut rng);
 
-        let hole_sb = [
-            #[allow(clippy::expect_used)]
-            deck.deal_one().expect("deck initialized with 52 cards"),
-            #[allow(clippy::expect_used)]
-            deck.deal_one().expect("deck has 51 cards after first deal"),
-        ];
-        let hole_bb = [
-            #[allow(clippy::expect_used)]
-            deck.deal_one().expect("deck has 50 cards after SB hole"),
-            #[allow(clippy::expect_used)]
-            deck.deal_one()
-                .expect("deck has 49 cards after BB first card"),
-        ];
+        let Some(card1) = deck.deal_one() else {
+            return;
+        };
+        let Some(card2) = deck.deal_one() else {
+            return;
+        };
+        let hole_sb = [card1, card2];
+
+        let Some(card3) = deck.deal_one() else {
+            return;
+        };
+        let Some(card4) = deck.deal_one() else {
+            return;
+        };
+        let hole_bb = [card3, card4];
+
         let board: Vec<Card> = deck.deal(5);
         let hands = [hole_sb, hole_bb];
 
@@ -291,8 +294,9 @@ impl CFRSolver {
         player: Player,
     ) -> f64 {
         if state.is_fold() {
-            #[allow(clippy::unwrap_used)]
-            let winner = state.winner().unwrap();
+            let Some(winner) = state.winner() else {
+                return 0.0;
+            };
             let player_committed = state.committed[player.index()] as f64;
             return if winner == player {
                 state.pot as f64 - player_committed

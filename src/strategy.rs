@@ -170,6 +170,7 @@ impl Strategy {
 
     /// Returns statistics about the stored strategy.
     #[must_use]
+    #[inline]
     #[allow(clippy::cast_precision_loss)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();

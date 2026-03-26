@@ -108,7 +108,7 @@ impl CFRConfig {
     /// Returns an error if any configuration value is invalid.
     #[cold]
     #[must_use = "validate() returns a Result that should be checked"]
-    pub fn validate(&self) -> Result<(), CFRConfigError> {
+    pub const fn validate(&self) -> Result<(), CFRConfigError> {
         if self.num_iterations == 0 {
             return Err(CFRConfigError::InvalidNumIterations);
         }

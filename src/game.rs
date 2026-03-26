@@ -10,6 +10,9 @@ use crate::config::GameConfig;
 /// Number of players in heads-up poker.
 pub const NUM_PLAYERS: usize = 2;
 
+const POT_BET_FRACTION_NUM: u64 = 1;
+const POT_BET_FRACTION_DENOM: u64 = 2;
+
 /// Player position in heads-up poker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -167,6 +170,16 @@ impl LegalActions {
     }
 }
 
+impl<'a> IntoIterator for &'a LegalActions {
+    type Item = &'a Action;
+    type IntoIter = std::slice::Iter<'a, Action>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
+    }
+}
+
 impl IntoIterator for LegalActions {
     type Item = Action;
     type IntoIter = std::array::IntoIter<Action, 6>;
@@ -205,7 +218,7 @@ impl GameState {
     /// Creates a new game state with blinds posted.
     #[must_use]
     #[inline]
-    pub fn new(config: GameConfig) -> Self {
+    pub const fn new(config: GameConfig) -> Self {
         Self {
             street: Street::Preflop,
             current_player: Player::SB,
@@ -263,7 +276,7 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn winner(&self) -> Option<Player> {
-        if let Some(Action::Fold) = self.history.last() {
+        if matches!(self.history.last(), Some(Action::Fold)) {
             Some(self.current_player)
         } else {
             None
@@ -289,8 +302,6 @@ impl GameState {
             actions[len] = Action::Check;
             len += 1;
 
-            const POT_BET_FRACTION_NUM: u64 = 1;
-            const POT_BET_FRACTION_DENOM: u64 = 2;
             let bet_size =
                 (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
             if bet_size > 0 {
@@ -325,8 +336,7 @@ impl GameState {
     pub fn apply_action(&self, action: Action) -> Self {
         let mut new_state = self.clone();
         match action {
-            Action::Fold => {}
-            Action::Check => {}
+            Action::Fold | Action::Check => {}
             Action::Call => {
                 let to_call = self
                     .last_bet
@@ -404,7 +414,12 @@ impl InfoSet {
     /// Creates a new info set from cards.
     #[must_use]
     #[inline]
-    pub fn from_cards(player: Player, street: Street, hole: &[Card; 2], board: CardSet) -> Self {
+    pub const fn from_cards(
+        player: Player,
+        street: Street,
+        hole: &[Card; 2],
+        board: CardSet,
+    ) -> Self {
         Self {
             player,
             street,
@@ -429,12 +444,12 @@ impl fmt::Display for InfoSet {
             self.player, self.street, self.hole[0], self.hole[1]
         )?;
         for card in self.board.as_slice() {
-            write!(f, "/{}", card)?;
+            write!(f, "/{card}")?;
         }
         if !self.history.is_empty() {
             write!(f, ":")?;
             for action in &self.history {
-                write!(f, "{}", action)?;
+                write!(f, "{action}")?;
             }
         }
         Ok(())

@@ -1,5 +1,7 @@
 //! Poker hand evaluation (high card through straight flush).
 
+#![allow(clippy::tuple_array_conversions)]
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -32,7 +34,6 @@ impl Hand {
     #[inline]
     pub const fn hand_type(&self) -> HandType {
         match self.rank >> 24 {
-            0 => HandType::HighCard,
             1 => HandType::Pair,
             2 => HandType::TwoPair,
             3 => HandType::ThreeOfAKind,

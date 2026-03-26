@@ -35,8 +35,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use nash::{
-        Action, CFRConfig, Card, CardSet, Deck, GameConfig, GameState, Hand, Player, Strategy,
-        StrategyEntry, Street,
+        Action, CFRConfig, Card, CardSet, Deck, GameConfig, GameState, Hand, HandType, InfoSet,
+        Player, Strategy, StrategyEntry, Street,
     };
 
     fn card(rank: u8, suit: u8) -> Card {
@@ -149,6 +149,36 @@ mod tests {
         let hand = Hand::evaluate(&hole, &board);
         let four_kind_hand = Hand::evaluate(&[card(5, 0), card(5, 1)], &board);
         assert!(hand > four_kind_hand);
+    }
+
+    #[test]
+    fn test_hand_royal_flush() {
+        let hole = [card(14, 0), card(13, 0)];
+        let board = [
+            card(12, 0),
+            card(11, 0),
+            card(10, 0),
+            card(3, 1),
+            card(2, 2),
+        ];
+        let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::RoyalFlush);
+        let straight_flush_hand = Hand::evaluate(&[card(9, 0), card(8, 0)], &board);
+        assert!(hand > straight_flush_hand);
+    }
+
+    #[test]
+    fn test_hand_type_display() {
+        assert_eq!(format!("{}", HandType::RoyalFlush), "Royal Flush");
+        assert_eq!(format!("{}", HandType::StraightFlush), "Straight Flush");
+        assert_eq!(format!("{}", HandType::FourOfAKind), "Four of a Kind");
+        assert_eq!(format!("{}", HandType::FullHouse), "Full House");
+        assert_eq!(format!("{}", HandType::Flush), "Flush");
+        assert_eq!(format!("{}", HandType::Straight), "Straight");
+        assert_eq!(format!("{}", HandType::ThreeOfAKind), "Three of a Kind");
+        assert_eq!(format!("{}", HandType::TwoPair), "Two Pair");
+        assert_eq!(format!("{}", HandType::Pair), "Pair");
+        assert_eq!(format!("{}", HandType::HighCard), "High Card");
     }
 
     #[test]
@@ -343,5 +373,112 @@ mod tests {
         let config = CFRConfig::default();
         assert_eq!(config.num_iterations, 100);
         assert!(config.use_chance_sampling);
+    }
+
+    #[test]
+    fn test_card_display() {
+        let ace_spades = card(14, 3);
+        assert_eq!(format!("{ace_spades}"), "As");
+        let two_clubs = card(2, 0);
+        assert_eq!(format!("{two_clubs}"), "2c");
+        let king_hearts = card(13, 2);
+        assert_eq!(format!("{king_hearts}"), "Kh");
+        let ten_diamonds = card(10, 1);
+        assert_eq!(format!("{ten_diamonds}"), "Td");
+    }
+
+    #[test]
+    fn test_player_display() {
+        assert_eq!(format!("{}", Player::SB), "SB");
+        assert_eq!(format!("{}", Player::BB), "BB");
+    }
+
+    #[test]
+    fn test_street_display() {
+        assert_eq!(format!("{}", Street::Preflop), "Preflop");
+        assert_eq!(format!("{}", Street::Flop), "Flop");
+        assert_eq!(format!("{}", Street::Turn), "Turn");
+        assert_eq!(format!("{}", Street::River), "River");
+    }
+
+    #[test]
+    fn test_action_display() {
+        assert_eq!(format!("{}", Action::Fold), "Fold");
+        assert_eq!(format!("{}", Action::Check), "Check");
+        assert_eq!(format!("{}", Action::Call), "Call");
+        assert_eq!(format!("{}", Action::Bet(100)), "Bet(100)");
+        assert_eq!(format!("{}", Action::Raise(50)), "Raise(50)");
+        assert_eq!(format!("{}", Action::AllIn), "AllIn");
+    }
+
+    #[test]
+    fn test_game_config_validate() {
+        let valid = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        assert!(valid.validate().is_ok());
+
+        let invalid_stacks = GameConfig {
+            initial_stacks: [0, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        assert!(invalid_stacks.validate().is_err());
+
+        let invalid_blinds = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 0,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        assert!(invalid_blinds.validate().is_err());
+
+        let invalid_blind_ratio = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 5,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        assert!(invalid_blind_ratio.validate().is_err());
+    }
+
+    #[test]
+    fn test_cfr_config_validate() {
+        let valid = CFRConfig::default();
+        assert!(valid.validate().is_ok());
+
+        let invalid_iterations = CFRConfig {
+            num_iterations: 0,
+            ..CFRConfig::default()
+        };
+        assert!(invalid_iterations.validate().is_err());
+    }
+
+    #[test]
+    fn test_legal_actions_iter() {
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let actions = state.legal_actions();
+        let count = actions.iter().count();
+        assert!(count >= 3);
+    }
+
+    #[test]
+    fn test_info_set_display() {
+        let hole = [card(14, 0), card(13, 1)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        let info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+        let display = format!("{info_set}");
+        assert!(display.contains("SB"));
+        assert!(display.contains("Flop"));
     }
 }

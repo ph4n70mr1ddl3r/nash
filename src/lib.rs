@@ -8,7 +8,17 @@
     missing_docs,
     missing_debug_implementations,
     rust_2018_idioms,
-    clippy::all
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::unwrap_used,
+    clippy::expect_used
+)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::redundant_pub_crate,
+    clippy::option_if_let_else,
+    clippy::similar_names
 )]
 
 pub mod card;

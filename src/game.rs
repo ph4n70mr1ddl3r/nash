@@ -369,7 +369,7 @@ impl GameState {
                 Street::Preflop => Street::Flop,
                 Street::Flop => Street::Turn,
                 Street::Turn => Street::River,
-                Street::River => new_state.street,
+                Street::River => unreachable!("River handled by condition above"),
             };
             if new_state.street != Street::River {
                 new_state.last_bet = 0;

@@ -13,7 +13,7 @@ use crate::game::{Action, InfoSet};
 pub const MAX_ACTIONS: usize = 8;
 
 /// Statistics about the stored strategy.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StrategyStats {
     /// Number of information sets stored.
     pub info_sets: usize,

@@ -71,7 +71,7 @@ impl Default for GameConfig {
 }
 
 /// Errors that can occur when validating CFR configuration.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum CFRConfigError {
     /// Number of iterations must be positive.
@@ -108,7 +108,7 @@ impl CFRConfig {
     /// Returns an error if any configuration value is invalid.
     #[cold]
     #[must_use = "validate() returns a Result that should be checked"]
-    pub const fn validate(&self) -> Result<(), CFRConfigError> {
+    pub fn validate(&self) -> Result<(), CFRConfigError> {
         if self.num_iterations == 0 {
             return Err(CFRConfigError::InvalidNumIterations);
         }

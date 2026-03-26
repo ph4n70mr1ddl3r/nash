@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::card::Card;
 
+/// Bitmask for wheel straight (A-2-3-4-5): bits set at ranks 14, 5, 4, 3, 2.
 const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 
 /// Result of flush detection containing flush cards and count.

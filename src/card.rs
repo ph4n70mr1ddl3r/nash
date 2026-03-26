@@ -50,6 +50,7 @@ impl Card {
         &ALL_CARDS
     }
 
+    /// Returns a placeholder card with invalid rank/suit for array initialization.
     #[inline]
     pub(crate) const fn placeholder() -> Self {
         Self { rank: 0, suit: 0 }

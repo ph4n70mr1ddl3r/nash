@@ -115,6 +115,14 @@ impl Strategy {
         }
     }
 
+    /// Creates a new strategy with pre-allocated capacity.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: DashMap::with_capacity(capacity),
+        }
+    }
+
     /// Returns the number of information sets stored.
     #[must_use]
     #[inline]
@@ -141,6 +149,21 @@ impl Strategy {
                 let entry = StrategyEntry::new(num_actions);
                 entry.get_strategy(out);
                 e.insert(entry);
+            }
+        }
+    }
+
+    /// Gets or creates a strategy entry, returning a copy of the entry.
+    #[inline]
+    #[must_use]
+    pub fn get_or_create_entry(&self, info_set: &InfoSet, num_actions: usize) -> StrategyEntry {
+        use dashmap::mapref::entry::Entry;
+        match self.entries.entry(info_set.clone()) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
+                let entry = StrategyEntry::new(num_actions);
+                e.insert(entry);
+                entry
             }
         }
     }

@@ -28,7 +28,12 @@ impl CFRSolver {
     /// Creates a new solver with the given configurations.
     #[must_use]
     pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Self {
-        let strategy = Arc::new(Strategy::new());
+        let estimated_info_sets = if cfr_config.use_chance_sampling {
+            10_000
+        } else {
+            100_000
+        };
+        let strategy = Arc::new(Strategy::with_capacity(estimated_info_sets));
         Self {
             config: game_config,
             cfr_config,
@@ -131,6 +136,7 @@ impl CFRSolver {
     #[inline]
     fn run_iteration_full(&self, iter_weight: f64) {
         use rand::prelude::*;
+        use rand::SeedableRng;
 
         let all_cards = Card::all();
         let num_cards = all_cards.len();
@@ -138,7 +144,7 @@ impl CFRSolver {
         let config = self.config;
 
         (0..num_cards).into_par_iter().for_each(|i| {
-            let mut rng = rand::rngs::StdRng::from_entropy();
+            let mut rng = rand::rngs::StdRng::seed_from_u64(i as u64);
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {
@@ -264,9 +270,8 @@ impl CFRSolver {
 
     /// Returns a placeholder estimate of strategy exploitability.
     ///
-    /// This is a stub implementation that returns a decreasing value based on
-    /// iteration count. A proper implementation would compute best response
-    /// values against the current strategy.
+    /// TODO: Implement proper exploitability calculation using best response
+    /// traversal. This stub returns a decreasing value based on iteration count.
     #[allow(clippy::cast_precision_loss)]
     fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)

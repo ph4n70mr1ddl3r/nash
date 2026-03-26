@@ -1,7 +1,5 @@
 //! CFR+ algorithm implementation.
 
-#![allow(clippy::expect_used, clippy::unwrap_used)]
-
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -111,12 +109,17 @@ impl CFRSolver {
         deck.shuffle(&mut rng);
 
         let hole_sb = [
-            deck.deal_one().expect("deck should have 52 cards"),
-            deck.deal_one().expect("deck should have 51 cards"),
+            #[allow(clippy::expect_used)]
+            deck.deal_one().expect("deck initialized with 52 cards"),
+            #[allow(clippy::expect_used)]
+            deck.deal_one().expect("deck has 51 cards after first deal"),
         ];
         let hole_bb = [
-            deck.deal_one().expect("deck should have 50 cards"),
-            deck.deal_one().expect("deck should have 49 cards"),
+            #[allow(clippy::expect_used)]
+            deck.deal_one().expect("deck has 50 cards after SB hole"),
+            #[allow(clippy::expect_used)]
+            deck.deal_one()
+                .expect("deck has 49 cards after BB first card"),
         ];
         let board: Vec<Card> = deck.deal(5);
         let hands = [hole_sb, hole_bb];
@@ -288,6 +291,7 @@ impl CFRSolver {
         player: Player,
     ) -> f64 {
         if state.is_fold() {
+            #[allow(clippy::unwrap_used)]
             let winner = state.winner().unwrap();
             let player_committed = state.committed[player.index()] as f64;
             return if winner == player {

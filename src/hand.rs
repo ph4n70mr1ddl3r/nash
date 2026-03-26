@@ -355,6 +355,6 @@ impl fmt::Display for HandType {
 impl fmt::Display for Hand {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.hand_type())
+        write!(f, "{} (rank: {})", self.hand_type(), self.rank)
     }
 }

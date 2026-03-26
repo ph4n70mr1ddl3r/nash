@@ -108,7 +108,8 @@ impl CFRConfig {
     /// Returns an error if any configuration value is invalid.
     #[cold]
     #[must_use = "validate() returns a Result that should be checked"]
-    pub const fn validate(&self) -> Result<(), CFRConfigError> {
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn validate(&self) -> Result<(), CFRConfigError> {
         if self.num_iterations == 0 {
             return Err(CFRConfigError::InvalidNumIterations);
         }

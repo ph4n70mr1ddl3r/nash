@@ -153,21 +153,6 @@ impl Strategy {
         }
     }
 
-    /// Gets or creates a strategy entry, returning a copy of the entry.
-    #[inline]
-    #[must_use]
-    pub fn get_or_create_entry(&self, info_set: &InfoSet, num_actions: usize) -> StrategyEntry {
-        use dashmap::mapref::entry::Entry;
-        match self.entries.entry(info_set.clone()) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => {
-                let entry = StrategyEntry::new(num_actions);
-                e.insert(entry);
-                entry
-            }
-        }
-    }
-
     /// Updates the strategy entry for an info set.
     #[inline]
     pub fn update_entry(

@@ -371,12 +371,10 @@ impl GameState {
                 Street::Turn => Street::River,
                 Street::River => unreachable!("River handled by condition above"),
             };
-            if new_state.street != Street::River {
-                new_state.last_bet = 0;
-                new_state.min_raise = new_state.config.min_bet;
-                new_state.current_player = Player::SB;
-                new_state.round_start = new_state.history.len();
-            }
+            new_state.last_bet = 0;
+            new_state.min_raise = new_state.config.min_bet;
+            new_state.current_player = Player::SB;
+            new_state.round_start = new_state.history.len();
         } else {
             new_state.current_player = self.current_player.opponent();
         }

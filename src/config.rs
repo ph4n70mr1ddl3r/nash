@@ -17,7 +17,7 @@ pub struct GameConfig {
 }
 
 /// Errors that can occur when validating game configuration.
-#[derive(Debug, Clone, Copy, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum ConfigError {
     /// Stack sizes must be positive.

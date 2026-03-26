@@ -419,3 +419,23 @@ impl InfoSet {
         self.history.push(*action);
     }
 }
+
+impl fmt::Display for InfoSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}/{}",
+            self.player, self.street, self.hole[0], self.hole[1]
+        )?;
+        for card in self.board.as_slice() {
+            write!(f, "/{}", card)?;
+        }
+        if !self.history.is_empty() {
+            write!(f, ":")?;
+            for action in &self.history {
+                write!(f, "{}", action)?;
+            }
+        }
+        Ok(())
+    }
+}

@@ -251,8 +251,8 @@ impl GameState {
     }
 
     /// Applies an action and returns the new game state.
-    #[inline]
     #[must_use]
+    #[inline]
     pub fn apply_action(&self, action: Action) -> Self {
         let mut new_state = self.clone();
         match action {
@@ -300,12 +300,14 @@ impl GameState {
                 Street::Preflop => Street::Flop,
                 Street::Flop => Street::Turn,
                 Street::Turn => Street::River,
-                Street::River => unreachable!("checked above"),
+                Street::River => new_state.street,
             };
-            new_state.last_bet = 0;
-            new_state.min_raise = new_state.config.min_bet;
-            new_state.current_player = Player::SB;
-            new_state.round_start = new_state.history.len();
+            if new_state.street != Street::River {
+                new_state.last_bet = 0;
+                new_state.min_raise = new_state.config.min_bet;
+                new_state.current_player = Player::SB;
+                new_state.round_start = new_state.history.len();
+            }
         } else {
             new_state.current_player = self.current_player.opponent();
         }

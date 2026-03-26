@@ -160,11 +160,11 @@ impl Strategy {
     #[allow(clippy::cast_precision_loss)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
-        let base_size = std::mem::size_of::<InfoSet>()
-            + std::mem::size_of::<StrategyEntry>()
-            + std::mem::size_of::<DashMap<InfoSet, StrategyEntry>>();
-        let avg_history_overhead = 3 * std::mem::size_of::<Action>();
-        let total_memory = info_sets * (base_size + avg_history_overhead);
+        let entry_size = std::mem::size_of::<InfoSet>() + std::mem::size_of::<StrategyEntry>();
+        let dashmap_overhead = std::mem::size_of::<DashMap<InfoSet, StrategyEntry>>();
+        let avg_history_len = 4;
+        let history_overhead = avg_history_len * std::mem::size_of::<Action>();
+        let total_memory = dashmap_overhead + info_sets * (entry_size + history_overhead);
         let memory_mb = total_memory as f64 / 1_000_000.0;
         StrategyStats {
             info_sets,

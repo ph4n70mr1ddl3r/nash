@@ -45,6 +45,7 @@ impl Hand {
 
     /// Evaluates a poker hand from hole cards and board.
     #[must_use]
+    #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
         let mut all_cards: [Card; 7] = [
             hole[0],
@@ -140,6 +141,10 @@ impl Hand {
     #[inline]
     #[allow(clippy::cast_lossless)]
     fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
+        debug_assert!(
+            values.len() <= 5,
+            "values array too large for hand rank encoding"
+        );
         let mut rank = hand_type << 24;
         for (i, &v) in values.iter().enumerate() {
             rank += u32::from(v) << (20 - i * 4);

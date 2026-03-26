@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 const NUM_CARDS: usize = 52;
 
 /// A playing card with rank (2-14, where 14=Ace) and suit (0-3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Card {
     rank: u8,
     suit: u8,
@@ -63,6 +63,7 @@ impl Default for Card {
 }
 
 impl fmt::Display for Card {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let rank_char = match self.rank {
             14 => 'A',

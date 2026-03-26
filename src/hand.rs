@@ -58,7 +58,7 @@ impl Hand {
         ];
         let len = 2 + board.len().min(5);
         all_cards[2..len].copy_from_slice(&board[..len - 2]);
-        all_cards[..len].sort_by_key(|b| std::cmp::Reverse(b.rank()));
+        all_cards[..len].sort_unstable_by_key(|b| std::cmp::Reverse(b.rank()));
 
         let rank = Self::evaluate_hand_rank(&all_cards[..len]);
         Self { rank }
@@ -331,6 +331,7 @@ pub enum HandType {
 }
 
 impl fmt::Display for HandType {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::HighCard => write!(f, "High Card"),
@@ -348,6 +349,7 @@ impl fmt::Display for HandType {
 }
 
 impl fmt::Display for Hand {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.hand_type())
     }

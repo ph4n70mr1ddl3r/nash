@@ -11,7 +11,7 @@ use crate::config::GameConfig;
 pub const NUM_PLAYERS: usize = 2;
 
 /// Player position in heads-up poker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Player {
     /// Small blind position (acts first preflop).
@@ -43,6 +43,7 @@ impl Player {
 }
 
 impl fmt::Display for Player {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SB => write!(f, "SB"),
@@ -52,7 +53,7 @@ impl fmt::Display for Player {
 }
 
 /// Betting street in a poker hand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Street {
     /// Preflop (no community cards).
@@ -80,6 +81,7 @@ impl Street {
 }
 
 impl fmt::Display for Street {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Preflop => write!(f, "Preflop"),
@@ -91,7 +93,7 @@ impl fmt::Display for Street {
 }
 
 /// A player action in a poker hand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Action {
     /// Fold and forfeit the hand.
@@ -109,6 +111,7 @@ pub enum Action {
 }
 
 impl fmt::Display for Action {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Fold => write!(f, "Fold"),

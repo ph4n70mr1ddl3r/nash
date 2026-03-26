@@ -117,12 +117,14 @@ impl Strategy {
 
     /// Returns the number of information sets stored.
     #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
     /// Returns `true` if no information sets are stored.
     #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

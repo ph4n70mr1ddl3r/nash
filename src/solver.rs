@@ -86,6 +86,7 @@ impl CFRSolver {
         info!("CFR+ completed in {:?}", total);
     }
 
+    #[inline]
     fn run_iteration(&self, iter_weight: f64) {
         if self.cfr_config.use_chance_sampling {
             self.run_iteration_sampled(iter_weight);
@@ -94,6 +95,7 @@ impl CFRSolver {
         }
     }
 
+    #[inline]
     fn run_iteration_sampled(&self, iter_weight: f64) {
         use rand::prelude::*;
 
@@ -126,6 +128,7 @@ impl CFRSolver {
         );
     }
 
+    #[inline]
     fn run_iteration_full(&self, iter_weight: f64) {
         use rand::prelude::*;
 
@@ -173,6 +176,7 @@ impl CFRSolver {
         });
     }
 
+    #[inline]
     #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
         strategy: &Arc<Strategy>,
@@ -268,8 +272,8 @@ impl CFRSolver {
         1.0 / (self.iteration as f64 + 1.0)
     }
 
-    #[allow(clippy::cast_precision_loss)]
     #[inline]
+    #[allow(clippy::cast_precision_loss)]
     fn get_utility_impl(
         state: &GameState,
         hands: &[[Card; 2]],

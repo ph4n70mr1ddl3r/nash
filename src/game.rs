@@ -125,7 +125,7 @@ impl fmt::Display for Action {
 }
 
 /// Legal actions result with stack allocation (max 6 actions in heads-up NLHE).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalActions {
     actions: [Action; 6],
     len: u8,

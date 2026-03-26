@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::card::Card;
 
 const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
@@ -11,7 +13,7 @@ const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 type FlushResult = Option<([Card; 7], usize)>;
 
 /// A evaluated poker hand with a comparable rank value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Hand {
     rank: u32,
 }
@@ -305,7 +307,7 @@ impl Hand {
 }
 
 /// The type/category of a poker hand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum HandType {
     /// High card only.

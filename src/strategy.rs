@@ -67,6 +67,9 @@ impl StrategyEntry {
     #[allow(clippy::cast_precision_loss)]
     pub fn get_strategy(&self, out: &mut [f64]) {
         let num_actions = self.num_actions as usize;
+        if num_actions == 0 {
+            return;
+        }
         let len = out.len().min(num_actions);
         let mut sum = 0.0;
         let uniform = 1.0 / num_actions as f64;

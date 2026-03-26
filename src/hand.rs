@@ -6,6 +6,10 @@ use crate::card::Card;
 
 const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 
+/// Result of flush detection containing flush cards and count.
+/// Uses fixed-size array to avoid heap allocation in hot path.
+type FlushResult = Option<([Card; 7], usize)>;
+
 /// A evaluated poker hand with a comparable rank value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Hand {
@@ -72,8 +76,8 @@ impl Hand {
         let flush = Self::find_flush(cards);
         let straight = Self::find_straight(cards);
 
-        if let (Some(flush_cards), Some(straight_high)) = (&flush, straight) {
-            if Self::is_straight_flush(flush_cards, straight_high) {
+        if let (Some((flush_cards, flush_len)), Some(straight_high)) = (&flush, straight) {
+            if Self::is_straight_flush(&flush_cards[..*flush_len], straight_high) {
                 if straight_high == 14 {
                     return Self::hand_rank(9, &[14]);
                 }
@@ -99,9 +103,9 @@ impl Hand {
             return Self::hand_rank(6, &[trips, pair]);
         }
 
-        if let Some(flush_cards) = flush {
+        if let Some((flush_cards, flush_len)) = flush {
             let mut kickers = [0u8; 5];
-            for (i, c) in flush_cards.iter().take(5).enumerate() {
+            for (i, c) in flush_cards.iter().take(flush_len.min(5)).enumerate() {
                 kickers[i] = c.rank();
             }
             return Self::hand_rank(5, &kickers);
@@ -173,19 +177,22 @@ impl Hand {
     }
 
     #[inline]
-    fn find_flush(cards: &[Card]) -> Option<Vec<Card>> {
+    fn find_flush(cards: &[Card]) -> FlushResult {
         let mut suit_counts = [0usize; 4];
         for card in cards {
             suit_counts[card.suit() as usize] += 1;
         }
         for (suit, &count) in suit_counts.iter().enumerate() {
             if count >= 5 {
-                let flush_cards: Vec<Card> = cards
-                    .iter()
-                    .filter(|c| c.suit() as usize == suit)
-                    .copied()
-                    .collect();
-                return Some(flush_cards);
+                let mut flush_cards = [Card::placeholder(); 7];
+                let mut len = 0;
+                for &card in cards {
+                    if card.suit() as usize == suit {
+                        flush_cards[len] = card;
+                        len += 1;
+                    }
+                }
+                return Some((flush_cards, len));
             }
         }
         None

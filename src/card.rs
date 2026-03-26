@@ -179,6 +179,7 @@ impl Deck {
     }
 
     /// Deals one card from the deck, returning `None` if the deck is exhausted.
+    #[inline]
     pub fn deal_one(&mut self) -> Option<Card> {
         if self.pos < self.cards.len() {
             let card = self.cards[self.pos];
@@ -190,6 +191,7 @@ impl Deck {
     }
 
     /// Deals `n` cards from the deck (or fewer if not enough cards remain).
+    #[inline]
     pub fn deal(&mut self, n: usize) -> Vec<Card> {
         let available = self.cards.len().saturating_sub(self.pos);
         let count = n.min(available);

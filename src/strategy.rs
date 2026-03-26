@@ -40,7 +40,7 @@ impl From<bincode::Error> for StrategyError {
 }
 
 /// Strategy data for a single information set.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct StrategyEntry {
     /// Cumulative regrets for each action.
     pub regrets: [f64; MAX_ACTIONS],
@@ -183,7 +183,7 @@ impl Strategy {
         let entries: Vec<_> = self
             .entries
             .iter()
-            .map(|e| (e.key().clone(), e.value().clone()))
+            .map(|e| (e.key().clone(), *e.value()))
             .collect();
         bincode::serialize_into(writer, &entries)?;
         Ok(())

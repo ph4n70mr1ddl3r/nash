@@ -212,6 +212,7 @@ pub struct GameState {
     pub last_bet: u64,
     /// Game configuration.
     pub config: GameConfig,
+    /// Index in `history` where the current betting round started.
     round_start: usize,
 }
 
@@ -238,6 +239,13 @@ impl GameState {
     #[inline]
     pub fn is_terminal(&self) -> bool {
         self.is_fold() || self.is_showdown()
+    }
+
+    /// Returns the number of board cards visible on the current street.
+    #[must_use]
+    #[inline]
+    pub fn visible_board_count(&self, board_len: usize) -> usize {
+        self.street.board_card_count().min(board_len)
     }
 
     /// Returns `true` if the last action was a fold.

@@ -19,6 +19,8 @@ use std::time::Instant;
 use rayon::prelude::*;
 use tracing::{info, warn};
 
+use thiserror::Error;
+
 use crate::card::{Card, CardSet, Deck};
 use crate::config::{CFRConfig, CFRConfigError, ConfigError, GameConfig};
 use crate::game::{GameState, InfoSet, Player};
@@ -26,24 +28,16 @@ use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
 /// Error type for solver operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum SolverError {
     /// Invalid game configuration.
-    InvalidGameConfig(ConfigError),
+    #[error("Invalid game config: {0}")]
+    InvalidGameConfig(#[from] ConfigError),
     /// Invalid CFR configuration.
-    InvalidCFRConfig(CFRConfigError),
+    #[error("Invalid CFR config: {0}")]
+    InvalidCFRConfig(#[from] CFRConfigError),
 }
-
-impl std::fmt::Display for SolverError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidGameConfig(e) => write!(f, "Invalid game config: {e}"),
-            Self::InvalidCFRConfig(e) => write!(f, "Invalid CFR config: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for SolverError {}
 
 /// CFR+ solver for heads-up No-Limit Hold'em.
 #[derive(Debug, Clone)]
@@ -64,12 +58,8 @@ impl CFRSolver {
     ///
     /// Returns an error if either configuration is invalid.
     pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Result<Self, SolverError> {
-        game_config
-            .validate()
-            .map_err(SolverError::InvalidGameConfig)?;
-        cfr_config
-            .validate()
-            .map_err(SolverError::InvalidCFRConfig)?;
+        game_config.validate()?;
+        cfr_config.validate()?;
 
         let estimated_info_sets = if cfr_config.use_chance_sampling {
             10_000
@@ -283,8 +273,7 @@ impl CFRSolver {
             return Self::get_utility_impl(state, hands, board, player);
         }
 
-        let board_set =
-            CardSet::from_cards(&board[..state.street.board_card_count().min(board.len())]);
+        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let hole = &hands[current.index()];
 
         let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
@@ -384,8 +373,7 @@ impl CFRSolver {
             };
         }
 
-        let board_set =
-            CardSet::from_cards(&board[..state.street.board_card_count().min(board.len())]);
+        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let hole = &hands[player.index()];
         let opp_index = 1 - player.index();
         let opp_hole = &hands[opp_index];

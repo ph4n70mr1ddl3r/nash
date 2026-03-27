@@ -178,15 +178,19 @@ impl Strategy {
     /// Returns statistics about the stored strategy.
     #[must_use]
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
         let entry_size = std::mem::size_of::<InfoSet>() + std::mem::size_of::<StrategyEntry>();
         let dashmap_overhead = std::mem::size_of::<DashMap<InfoSet, StrategyEntry>>();
         let avg_history_len = 4;
         let history_overhead = avg_history_len * std::mem::size_of::<Action>();
-        let total_memory = dashmap_overhead
-            .saturating_add(info_sets.saturating_mul(entry_size.saturating_add(history_overhead)));
-        let memory_mb = (total_memory / 1_000_000) as u64;
+        let total_memory = u64::try_from(dashmap_overhead)
+            .unwrap_or(u64::MAX)
+            .saturating_add(u64::try_from(info_sets).unwrap_or(u64::MAX).saturating_mul(
+                u64::try_from(entry_size.saturating_add(history_overhead)).unwrap_or(u64::MAX),
+            ));
+        let memory_mb = total_memory / 1_000_000;
         StrategyStats {
             info_sets,
             memory_mb,

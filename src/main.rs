@@ -18,13 +18,10 @@ fn main() {
         use_chance_sampling: true,
     };
 
-    let mut solver = match CFRSolver::new(game_config, cfr_config) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to create solver: {e}");
-            std::process::exit(1);
-        }
-    };
+    let mut solver = CFRSolver::new(game_config, cfr_config).unwrap_or_else(|e| {
+        eprintln!("Failed to create solver: {e}");
+        std::process::exit(1);
+    });
     solver.solve();
 }
 

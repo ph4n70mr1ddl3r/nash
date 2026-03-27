@@ -32,5 +32,5 @@ pub use card::{Card, CardSet, Deck};
 pub use config::{CFRConfig, CFRConfigError, ConfigError, GameConfig};
 pub use game::{Action, GameState, InfoSet, LegalActions, Player, Street};
 pub use hand::{Hand, HandType};
-pub use solver::CFRSolver;
+pub use solver::{CFRSolver, SolverError};
 pub use strategy::{Strategy, StrategyEntry, StrategyError, StrategyStats};

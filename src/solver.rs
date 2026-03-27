@@ -20,10 +20,30 @@ use rayon::prelude::*;
 use tracing::{info, warn};
 
 use crate::card::{Card, CardSet, Deck};
-use crate::config::{CFRConfig, GameConfig};
+use crate::config::{CFRConfig, CFRConfigError, ConfigError, GameConfig};
 use crate::game::{GameState, InfoSet, Player};
 use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
+
+/// Error type for solver operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SolverError {
+    /// Invalid game configuration.
+    InvalidGameConfig(ConfigError),
+    /// Invalid CFR configuration.
+    InvalidCFRConfig(CFRConfigError),
+}
+
+impl std::fmt::Display for SolverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidGameConfig(e) => write!(f, "Invalid game config: {e}"),
+            Self::InvalidCFRConfig(e) => write!(f, "Invalid CFR config: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SolverError {}
 
 /// CFR+ solver for heads-up No-Limit Hold'em.
 #[derive(Debug, Clone)]
@@ -39,20 +59,30 @@ pub struct CFRSolver {
 
 impl CFRSolver {
     /// Creates a new solver with the given configurations.
-    #[must_use]
-    pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either configuration is invalid.
+    pub fn new(game_config: GameConfig, cfr_config: CFRConfig) -> Result<Self, SolverError> {
+        game_config
+            .validate()
+            .map_err(SolverError::InvalidGameConfig)?;
+        cfr_config
+            .validate()
+            .map_err(SolverError::InvalidCFRConfig)?;
+
         let estimated_info_sets = if cfr_config.use_chance_sampling {
             10_000
         } else {
             100_000
         };
         let strategy = Arc::new(Strategy::with_capacity(estimated_info_sets));
-        Self {
+        Ok(Self {
             config: game_config,
             cfr_config,
             strategy,
             iteration: 0,
-        }
+        })
     }
 
     /// Returns the current iteration number.
@@ -204,15 +234,16 @@ impl CFRSolver {
         let hole_bb = [all_cards[k], all_cards[l]];
         let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
 
-        let mut remaining: Vec<Card> = all_cards
-            .iter()
-            .enumerate()
-            .filter(|&(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
-            .map(|(_, c)| *c)
-            .collect();
+        let mut remaining: [Card; 48] = [Card::placeholder(); 48];
+        let mut remaining_len = 0;
+        for (idx, &c) in all_cards.iter().enumerate() {
+            if (excluded_mask & (1u64 << idx)) == 0 {
+                remaining[remaining_len] = c;
+                remaining_len += 1;
+            }
+        }
 
-        remaining.shuffle(rng);
-        let board: Vec<Card> = remaining.into_iter().take(5).collect();
+        remaining[..remaining_len].shuffle(rng);
 
         let hands = [hole_sb, hole_bb];
         let state = GameState::new(config);
@@ -221,7 +252,7 @@ impl CFRSolver {
             strategy,
             &state,
             &hands,
-            &board,
+            &remaining[..5],
             Player::SB,
             1.0,
             1.0,
@@ -317,8 +348,16 @@ impl CFRSolver {
 
     /// Returns a placeholder estimate of strategy exploitability.
     ///
-    /// TODO: Implement proper exploitability calculation using best response
-    /// traversal. This stub returns a decreasing value based on iteration count.
+    /// **Note:** This is a stub implementation that returns `1/(iteration+1)` for
+    /// progress tracking purposes only. A proper exploitability calculation requires
+    /// computing best response values through a separate traversal, which is not
+    /// yet implemented. The returned value decreases with iterations but does not
+    /// represent actual exploitability in game units.
+    ///
+    /// For production use, implement a proper best response calculation that:
+    /// 1. Computes the best response strategy for each player against the current strategy
+    /// 2. Calculates the expected value of each best response
+    /// 3. Returns the average of both players' best response values
     #[inline]
     #[allow(clippy::cast_precision_loss)]
     fn estimate_exploitability_placeholder(&self) -> f64 {

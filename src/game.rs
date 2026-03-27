@@ -330,9 +330,18 @@ impl GameState {
     }
 
     /// Applies an action and returns the new game state.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, panics if the action is not legal.
     #[must_use]
     #[inline]
     pub fn apply_action(&self, action: Action) -> Self {
+        debug_assert!(
+            self.legal_actions().contains(&action) || self.is_terminal(),
+            "Attempted to apply illegal action: {action:?}"
+        );
+
         let mut new_state = self.clone();
         match action {
             Action::Fold | Action::Check => {}

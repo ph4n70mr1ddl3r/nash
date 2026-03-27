@@ -242,7 +242,7 @@ impl Hand {
     #[inline]
     #[allow(clippy::cast_possible_truncation)]
     fn find_four_of_a_kind(counts: &[u8; 15]) -> Option<u8> {
-        for (rank, &count) in counts.iter().enumerate() {
+        for (rank, &count) in counts.iter().enumerate().rev() {
             if count == 4 {
                 return Some(rank as u8);
             }

@@ -10,11 +10,6 @@ fn main() {
         min_bet: 2,
     };
 
-    if let Err(e) = game_config.validate() {
-        eprintln!("Invalid game configuration: {e}");
-        std::process::exit(1);
-    }
-
     let cfr_config = CFRConfig {
         num_iterations: 100,
         log_interval: 10,
@@ -23,12 +18,13 @@ fn main() {
         use_chance_sampling: true,
     };
 
-    if let Err(e) = cfr_config.validate() {
-        eprintln!("Invalid CFR configuration: {e}");
-        std::process::exit(1);
-    }
-
-    let mut solver = CFRSolver::new(game_config, cfr_config);
+    let mut solver = match CFRSolver::new(game_config, cfr_config) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to create solver: {e}");
+            std::process::exit(1);
+        }
+    };
     solver.solve();
 }
 

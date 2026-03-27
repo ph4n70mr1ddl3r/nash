@@ -156,7 +156,6 @@ impl CFRSolver {
 
     #[inline]
     fn run_iteration_full(&self, iter_weight: f64) {
-        use rand::prelude::*;
         use rand::SeedableRng;
 
         let all_cards = Card::all();
@@ -169,38 +168,65 @@ impl CFRSolver {
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {
-                        let hole_sb = [all_cards[i], all_cards[j]];
-                        let hole_bb = [all_cards[k], all_cards[l]];
-                        let excluded_mask: u64 =
-                            (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
-
-                        let mut remaining: Vec<Card> = all_cards
-                            .iter()
-                            .enumerate()
-                            .filter(|&(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
-                            .map(|(_, c)| *c)
-                            .collect();
-
-                        let (shuffled, _) = remaining.partial_shuffle(&mut rng, 5);
-                        let board: Vec<Card> = shuffled.to_vec();
-
-                        let hands = [hole_sb, hole_bb];
-                        let state = GameState::new(config);
-
-                        Self::cfr_traversal_static(
+                        Self::process_card_combination(
                             &strategy,
-                            &state,
-                            &hands,
-                            &board,
-                            Player::SB,
-                            1.0,
-                            1.0,
+                            config,
+                            &mut rng,
+                            all_cards,
+                            i,
+                            j,
+                            k,
+                            l,
                             iter_weight,
                         );
                     }
                 }
             }
         });
+    }
+
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn process_card_combination(
+        strategy: &Arc<Strategy>,
+        config: GameConfig,
+        rng: &mut rand::rngs::StdRng,
+        all_cards: &[Card],
+        i: usize,
+        j: usize,
+        k: usize,
+        l: usize,
+        iter_weight: f64,
+    ) {
+        use rand::seq::SliceRandom;
+
+        let hole_sb = [all_cards[i], all_cards[j]];
+        let hole_bb = [all_cards[k], all_cards[l]];
+        let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
+
+        let mut remaining: Vec<Card> = all_cards
+            .iter()
+            .enumerate()
+            .filter(|&(idx, _)| (excluded_mask & (1u64 << idx)) == 0)
+            .map(|(_, c)| *c)
+            .collect();
+
+        remaining.shuffle(rng);
+        let board: Vec<Card> = remaining.into_iter().take(5).collect();
+
+        let hands = [hole_sb, hole_bb];
+        let state = GameState::new(config);
+
+        Self::cfr_traversal_static(
+            strategy,
+            &state,
+            &hands,
+            &board,
+            Player::SB,
+            1.0,
+            1.0,
+            iter_weight,
+        );
     }
 
     #[inline]
@@ -293,6 +319,7 @@ impl CFRSolver {
     ///
     /// TODO: Implement proper exploitability calculation using best response
     /// traversal. This stub returns a decreasing value based on iteration count.
+    #[inline]
     #[allow(clippy::cast_precision_loss)]
     fn estimate_exploitability_placeholder(&self) -> f64 {
         1.0 / (self.iteration as f64 + 1.0)

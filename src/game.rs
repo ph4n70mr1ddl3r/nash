@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::card::{Card, CardSet};
 use crate::config::GameConfig;
+use crate::strategy::MAX_ACTIONS;
 
 /// Number of players in heads-up poker.
 pub const NUM_PLAYERS: usize = 2;
@@ -127,10 +128,10 @@ impl fmt::Display for Action {
     }
 }
 
-/// Legal actions result with stack allocation (max 6 actions in heads-up NLHE).
+/// Legal actions result with stack allocation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalActions {
-    actions: [Action; 6],
+    actions: [Action; MAX_ACTIONS],
     len: u8,
 }
 
@@ -182,11 +183,11 @@ impl<'a> IntoIterator for &'a LegalActions {
 
 impl IntoIterator for LegalActions {
     type Item = Action;
-    type IntoIter = std::array::IntoIter<Action, 6>;
+    type IntoIter = std::array::IntoIter<Action, MAX_ACTIONS>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        let mut arr = [Action::Fold; 6];
+        let mut arr = [Action::Fold; MAX_ACTIONS];
         arr[..self.len as usize].copy_from_slice(&self.actions[..self.len as usize]);
         arr.into_iter()
     }
@@ -288,7 +289,7 @@ impl GameState {
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn legal_actions(&self) -> LegalActions {
-        let mut actions = [Action::Fold; 6];
+        let mut actions = [Action::Fold; MAX_ACTIONS];
         let mut len = 1;
 
         let remaining = self.config.initial_stacks[self.current_player.index()]

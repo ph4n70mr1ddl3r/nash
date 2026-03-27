@@ -33,7 +33,7 @@ impl Hand {
     /// Returns the type of hand (pair, flush, etc.).
     #[must_use]
     #[inline]
-    pub const fn hand_type(&self) -> HandType {
+    pub const fn hand_type(self) -> HandType {
         match self.rank >> 24 {
             1 => HandType::Pair,
             2 => HandType::TwoPair,

@@ -13,12 +13,12 @@ use crate::game::{Action, InfoSet};
 pub const MAX_ACTIONS: usize = 8;
 
 /// Statistics about the stored strategy.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrategyStats {
     /// Number of information sets stored.
     pub info_sets: usize,
     /// Estimated memory usage in megabytes.
-    pub memory_mb: f64,
+    pub memory_mb: u64,
 }
 
 /// Errors that can occur when saving/loading strategies.
@@ -60,6 +60,13 @@ impl StrategyEntry {
             strategy_sum: [0.0; MAX_ACTIONS],
             num_actions: num_actions.min(MAX_ACTIONS) as u8,
         }
+    }
+
+    /// Returns the number of actions for this entry.
+    #[must_use]
+    #[inline]
+    pub const fn num_actions(&self) -> usize {
+        self.num_actions as usize
     }
 
     /// Computes the current strategy from regrets (regret matching).
@@ -171,7 +178,6 @@ impl Strategy {
     /// Returns statistics about the stored strategy.
     #[must_use]
     #[inline]
-    #[allow(clippy::cast_precision_loss)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
         let entry_size = std::mem::size_of::<InfoSet>() + std::mem::size_of::<StrategyEntry>();
@@ -179,7 +185,7 @@ impl Strategy {
         let avg_history_len = 4;
         let history_overhead = avg_history_len * std::mem::size_of::<Action>();
         let total_memory = dashmap_overhead + info_sets * (entry_size + history_overhead);
-        let memory_mb = total_memory as f64 / 1_000_000.0;
+        let memory_mb = (total_memory / 1_000_000) as u64;
         StrategyStats {
             info_sets,
             memory_mb,
@@ -227,5 +233,11 @@ impl Strategy {
 impl Default for Strategy {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Default for StrategyEntry {
+    fn default() -> Self {
+        Self::new(0)
     }
 }

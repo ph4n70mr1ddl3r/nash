@@ -379,7 +379,8 @@ impl GameState {
             new_state.street = match new_state.street {
                 Street::Preflop => Street::Flop,
                 Street::Flop => Street::Turn,
-                Street::Turn | Street::River => Street::River,
+                Street::Turn => Street::River,
+                Street::River => unreachable!(),
             };
             new_state.last_bet = 0;
             new_state.min_raise = new_state.config.min_bet;

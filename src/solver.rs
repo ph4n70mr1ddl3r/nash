@@ -26,7 +26,7 @@ use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
 /// CFR+ solver for heads-up No-Limit Hold'em.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CFRSolver {
     /// The computed strategy (shared for concurrent access).
     pub strategy: Arc<Strategy>,
@@ -84,7 +84,7 @@ impl CFRSolver {
                 let exploitability = self.estimate_exploitability_placeholder();
 
                 info!(
-                    "Iteration {}: {} info sets, {:.2} MB, exploitability (placeholder): {:.6}, elapsed: {:?}",
+                    "Iteration {}: {} info sets, {} MB, exploitability (placeholder): {:.6}, elapsed: {:?}",
                     iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
                 );
             }

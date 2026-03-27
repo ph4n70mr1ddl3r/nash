@@ -40,10 +40,9 @@ impl GameConfig {
     /// # Errors
     ///
     /// Returns an error if any configuration value is invalid.
-    #[cold]
     #[must_use = "validate() returns a Result that should be checked"]
-    pub fn validate(&self) -> Result<(), ConfigError> {
-        if self.initial_stacks.contains(&0) {
+    pub const fn validate(&self) -> Result<(), ConfigError> {
+        if self.initial_stacks[0] == 0 || self.initial_stacks[1] == 0 {
             return Err(ConfigError::InvalidStacks);
         }
         if self.small_blind == 0 || self.big_blind == 0 {

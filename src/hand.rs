@@ -146,10 +146,7 @@ impl Hand {
     #[inline]
     #[allow(clippy::cast_lossless)]
     fn hand_rank(hand_type: u32, values: &[u8]) -> u32 {
-        debug_assert!(
-            values.len() <= 5,
-            "values array too large for hand rank encoding"
-        );
+        debug_assert!(values.len() <= 5);
         let mut rank = hand_type << 24;
         for (i, &v) in values.iter().enumerate() {
             rank += u32::from(v) << (20 - i * 4);

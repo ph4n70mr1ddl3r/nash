@@ -244,9 +244,7 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn is_fold(&self) -> bool {
-        self.history
-            .last()
-            .is_some_and(|a| matches!(a, Action::Fold))
+        matches!(self.history.last(), Some(Action::Fold))
     }
 
     /// Returns `true` if the hand reached showdown on the river.
@@ -380,7 +378,7 @@ impl GameState {
                 Street::Preflop => Street::Flop,
                 Street::Flop => Street::Turn,
                 Street::Turn => Street::River,
-                Street::River => unreachable!(),
+                Street::River => new_state.street,
             };
             new_state.last_bet = 0;
             new_state.min_raise = new_state.config.min_bet;

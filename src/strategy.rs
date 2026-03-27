@@ -81,9 +81,9 @@ impl StrategyEntry {
         let mut sum = 0.0;
         let uniform = 1.0 / num_actions as f64;
         for (out_val, &regret) in out.iter_mut().zip(self.regrets.iter()).take(len) {
-            let s = regret.max(0.0);
-            *out_val = s;
-            sum += s;
+            let positive_regret = regret.max(0.0);
+            *out_val = positive_regret;
+            sum += positive_regret;
         }
         if sum > 0.0 {
             for s in &mut out[..len] {
@@ -98,11 +98,11 @@ impl StrategyEntry {
     #[inline]
     pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_o: f64, iter_weight: f64) {
         let len = self.num_actions as usize;
-        for (i, &r) in regrets.iter().enumerate().take(len) {
-            self.regrets[i] = (self.regrets[i] + r).max(0.0);
+        for (i, &regret) in regrets.iter().enumerate().take(len) {
+            self.regrets[i] = (self.regrets[i] + regret).max(0.0);
         }
-        for (i, &s) in strategy.iter().enumerate().take(len) {
-            self.strategy_sum[i] += pi_o * s * iter_weight;
+        for (i, &strat) in strategy.iter().enumerate().take(len) {
+            self.strategy_sum[i] += pi_o * strat * iter_weight;
         }
     }
 }
@@ -184,7 +184,8 @@ impl Strategy {
         let dashmap_overhead = std::mem::size_of::<DashMap<InfoSet, StrategyEntry>>();
         let avg_history_len = 4;
         let history_overhead = avg_history_len * std::mem::size_of::<Action>();
-        let total_memory = dashmap_overhead + info_sets * (entry_size + history_overhead);
+        let total_memory = dashmap_overhead
+            .saturating_add(info_sets.saturating_mul(entry_size.saturating_add(history_overhead)));
         let memory_mb = (total_memory / 1_000_000) as u64;
         StrategyStats {
             info_sets,
@@ -201,6 +202,7 @@ impl Strategy {
     /// # Errors
     ///
     /// Returns an error if file I/O or serialization fails.
+    #[cold]
     pub fn save(&self, path: &str) -> Result<(), StrategyError> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
@@ -218,6 +220,7 @@ impl Strategy {
     /// # Errors
     ///
     /// Returns an error if file I/O or deserialization fails.
+    #[cold]
     pub fn load(path: &str) -> Result<Self, StrategyError> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);

@@ -188,6 +188,10 @@ impl Strategy {
 
     /// Saves the strategy to a binary file.
     ///
+    /// The strategy is serialized using bincode for efficient storage.
+    /// Note: This collects all entries into memory before serialization,
+    /// which may be memory-intensive for very large strategies.
+    ///
     /// # Errors
     ///
     /// Returns an error if file I/O or serialization fails.

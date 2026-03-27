@@ -1,4 +1,17 @@
 //! CFR+ algorithm implementation.
+//!
+//! This module implements Counterfactual Regret Minimization with linear weighting (CFR+)
+//! for solving heads-up No-Limit Hold'em poker.
+//!
+//! # Algorithm Overview
+//!
+//! CFR+ works by iteratively traversing the game tree and updating regret values at each
+//! information set. The algorithm converges to a Nash equilibrium strategy.
+//!
+//! Key features:
+//! - Linear regret weighting (CFR+) for faster convergence
+//! - Optional chance sampling for reduced computation
+//! - Parallel iteration support using Rayon
 
 use std::sync::Arc;
 use std::time::Instant;

@@ -363,9 +363,9 @@ impl GameState {
             Action::AllIn => {
                 let remaining = self.config.initial_stacks[self.current_player.index()]
                     .saturating_sub(self.committed[self.current_player.index()]);
-                new_state.committed[new_state.current_player.index()] += remaining;
+                new_state.committed[self.current_player.index()] += remaining;
                 new_state.pot += remaining;
-                new_state.last_bet = new_state.committed[new_state.current_player.index()];
+                new_state.last_bet = new_state.committed[self.current_player.index()];
             }
         }
 

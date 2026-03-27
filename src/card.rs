@@ -51,6 +51,11 @@ impl Card {
     }
 
     /// Returns a placeholder card with invalid rank/suit for array initialization.
+    ///
+    /// # Safety
+    ///
+    /// The returned card has rank 0 and suit 0, which are outside valid ranges.
+    /// This should only be used for initializing fixed-size arrays.
     #[inline]
     pub(crate) const fn placeholder() -> Self {
         Self { rank: 0, suit: 0 }

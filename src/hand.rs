@@ -1,5 +1,6 @@
 //! Poker hand evaluation (high card through straight flush).
 
+// Allow tuple-to-array conversion syntax which is more readable than .into()
 #![allow(clippy::tuple_array_conversions)]
 
 use std::fmt;

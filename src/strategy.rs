@@ -162,6 +162,9 @@ impl Strategy {
     }
 
     /// Updates the strategy entry for an info set.
+    ///
+    /// If the entry does not exist (shouldn't happen in normal operation),
+    /// the update is silently dropped and a trace log is emitted.
     #[inline]
     pub fn update_entry(
         &self,
@@ -171,10 +174,14 @@ impl Strategy {
         pi_o: f64,
         iter_weight: f64,
     ) {
-        if let Some(mut entry) = self.entries.get_mut(info_set) {
-            entry.update(regrets, strategy, pi_o, iter_weight);
-        } else {
-            trace!("update_entry: info set not found, update dropped");
+        use dashmap::mapref::entry::Entry;
+        match self.entries.entry(info_set.clone()) {
+            Entry::Occupied(mut e) => {
+                e.get_mut().update(regrets, strategy, pi_o, iter_weight);
+            }
+            Entry::Vacant(_) => {
+                trace!("update_entry: info set not found, update dropped");
+            }
         }
     }
 
@@ -185,15 +192,9 @@ impl Strategy {
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
         let entry_size = std::mem::size_of::<InfoSet>() + std::mem::size_of::<StrategyEntry>();
-        let dashmap_overhead = std::mem::size_of::<DashMap<InfoSet, StrategyEntry>>();
-        let avg_history_len = 4;
-        let history_overhead = avg_history_len * std::mem::size_of::<Action>();
-        let total_memory = u64::try_from(dashmap_overhead)
-            .unwrap_or(u64::MAX)
-            .saturating_add(u64::try_from(info_sets).unwrap_or(u64::MAX).saturating_mul(
-                u64::try_from(entry_size.saturating_add(history_overhead)).unwrap_or(u64::MAX),
-            ));
-        let memory_mb = total_memory / 1_000_000;
+        let bytes_per_entry = entry_size + 4 * std::mem::size_of::<Action>();
+        let total_bytes = (info_sets as u128) * (bytes_per_entry as u128);
+        let memory_mb = (total_bytes / 1_000_000) as u64;
         StrategyStats {
             info_sets,
             memory_mb,
@@ -232,7 +233,7 @@ impl Strategy {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
         let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)?;
-        let strategy = Self::new();
+        let strategy = Self::with_capacity(entries.len());
         for (key, value) in entries {
             strategy.entries.insert(key, value);
         }

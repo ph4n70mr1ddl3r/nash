@@ -141,21 +141,12 @@ impl CFRSolver {
         let mut deck = Deck::new();
         deck.shuffle(&mut rng);
 
-        let Some(card1) = deck.deal_one() else {
+        let hole_cards = deck.deal(4);
+        if hole_cards.len() < 4 {
             return;
-        };
-        let Some(card2) = deck.deal_one() else {
-            return;
-        };
-        let hole_sb = [card1, card2];
-
-        let Some(card3) = deck.deal_one() else {
-            return;
-        };
-        let Some(card4) = deck.deal_one() else {
-            return;
-        };
-        let hole_bb = [card3, card4];
+        }
+        let hole_sb = [hole_cards[0], hole_cards[1]];
+        let hole_bb = [hole_cards[2], hole_cards[3]];
 
         let board: Vec<Card> = deck.deal(5);
         let hands = [hole_sb, hole_bb];

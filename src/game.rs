@@ -396,6 +396,9 @@ impl GameState {
     }
 
     /// Returns the winner if the hand ended by fold.
+    ///
+    /// After a fold, `current_player` has been swapped to the folder's opponent
+    /// (i.e. the player who did *not* fold), so this returns the winner.
     #[must_use]
     #[inline]
     pub fn winner(&self) -> Option<Player> {

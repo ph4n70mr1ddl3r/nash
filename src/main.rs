@@ -343,6 +343,57 @@ mod tests {
     }
 
     #[test]
+    fn test_strategy_entry_get_average_strategy_uniform() {
+        let entry = StrategyEntry::new(2);
+        let mut avg = [0.0f64; 8];
+        entry.get_average_strategy(&mut avg);
+        assert!((avg[0] - 0.5).abs() < 1e-10);
+        assert!((avg[1] - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_strategy_entry_get_average_strategy_after_update() {
+        let mut entry = StrategyEntry::new(2);
+        entry.update(&[1.0, 3.0], &[0.25, 0.75], 1.0, 1.0);
+        let mut avg = [0.0f64; 8];
+        entry.get_average_strategy(&mut avg);
+        let sum = avg[0] + avg[1];
+        assert!((sum - 1.0).abs() < 1e-10);
+        assert!(avg[1] > avg[0]);
+    }
+
+    #[test]
+    fn test_strategy_get_average_strategy_missing_entry() {
+        let strategy = Strategy::new();
+        let hole = [card(14, 0), card(13, 1)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        let info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+
+        let mut avg = [0.0f64; 8];
+        let found = strategy.get_average_strategy(&info_set, 3, &mut avg);
+        assert!(!found);
+        assert!((avg[0] - 1.0 / 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_strategy_get_average_strategy_existing_entry() {
+        let strategy = Strategy::new();
+        let hole = [card(14, 0), card(13, 1)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        let info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+
+        let mut strat = [0.0f64; 8];
+        strategy.get_strategy(&info_set, 3, &mut strat);
+        strategy.update_entry(&info_set, &[1.0, 2.0, 3.0], &[0.3, 0.4, 0.3], 1.0, 1.0);
+
+        let mut avg = [0.0f64; 8];
+        let found = strategy.get_average_strategy(&info_set, 3, &mut avg);
+        assert!(found);
+        let sum: f64 = avg[..3].iter().sum();
+        assert!((sum - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
     fn test_hand_rank_ordering() {
         let board = [card(10, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];
         let high_card = Hand::evaluate(&[card(14, 0), card(12, 1)], &board);

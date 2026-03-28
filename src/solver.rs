@@ -16,6 +16,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use rand::prelude::*;
 use rayon::prelude::*;
 use tracing::{info, warn};
 
@@ -135,8 +136,6 @@ impl CFRSolver {
 
     #[inline]
     fn run_iteration_sampled(&self, iter_weight: f64) {
-        use rand::prelude::*;
-
         let mut rng = thread_rng();
         let mut deck = Deck::new();
         deck.shuffle(&mut rng);
@@ -153,22 +152,22 @@ impl CFRSolver {
 
         let state = GameState::new(self.config);
 
-        Self::cfr_traversal_static(
-            &self.strategy,
-            &state,
-            &hands,
-            &board,
-            Player::SB,
-            1.0,
-            1.0,
-            iter_weight,
-        );
+        for &player in &[Player::SB, Player::BB] {
+            Self::cfr_traversal_static(
+                &self.strategy,
+                &state,
+                &hands,
+                &board,
+                player,
+                1.0,
+                1.0,
+                iter_weight,
+            );
+        }
     }
 
     #[inline]
     fn run_iteration_full(&self, iter_weight: f64) {
-        use rand::SeedableRng;
-
         let all_cards = Card::all();
         let num_cards = all_cards.len();
         let strategy = self.strategy.clone();
@@ -209,8 +208,6 @@ impl CFRSolver {
         l: usize,
         iter_weight: f64,
     ) {
-        use rand::seq::SliceRandom;
-
         let hole_sb = [all_cards[i], all_cards[j]];
         let hole_bb = [all_cards[k], all_cards[l]];
         let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
@@ -229,16 +226,18 @@ impl CFRSolver {
         let hands = [hole_sb, hole_bb];
         let state = GameState::new(config);
 
-        Self::cfr_traversal_static(
-            strategy,
-            &state,
-            &hands,
-            &remaining[..5],
-            Player::SB,
-            1.0,
-            1.0,
-            iter_weight,
-        );
+        for &player in &[Player::SB, Player::BB] {
+            Self::cfr_traversal_static(
+                strategy,
+                &state,
+                &hands,
+                &remaining[..5],
+                player,
+                1.0,
+                1.0,
+                iter_weight,
+            );
+        }
     }
 
     #[inline]

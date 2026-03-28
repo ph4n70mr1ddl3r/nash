@@ -41,7 +41,7 @@ impl From<bincode::Error> for StrategyError {
 }
 
 /// Strategy data for a single information set.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct StrategyEntry {
     /// Cumulative regrets for each action.
     pub regrets: [f64; MAX_ACTIONS],
@@ -68,6 +68,33 @@ impl StrategyEntry {
     #[inline]
     pub const fn num_actions(&self) -> usize {
         self.num_actions as usize
+    }
+
+    /// Computes the average strategy from cumulative strategy sums.
+    ///
+    /// This is the converged strategy that should be used after CFR+ training.
+    /// Returns the normalized strategy sum divided by the total sum.
+    #[inline]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn get_average_strategy(&self, out: &mut [f64]) {
+        let num_actions = self.num_actions as usize;
+        if num_actions == 0 {
+            return;
+        }
+        let len = out.len().min(num_actions);
+        let mut sum = 0.0;
+        for (out_val, &s) in out.iter_mut().zip(self.strategy_sum.iter()).take(len) {
+            *out_val = s;
+            sum += s;
+        }
+        if sum > 0.0 {
+            for s in &mut out[..len] {
+                *s /= sum;
+            }
+        } else {
+            let uniform = 1.0 / num_actions as f64;
+            out[..len].fill(uniform);
+        }
     }
 
     /// Computes the current strategy from regrets (regret matching).
@@ -158,6 +185,32 @@ impl Strategy {
                 entry.get_strategy(out);
                 e.insert(entry);
             }
+        }
+    }
+
+    /// Gets the average strategy for an info set, if it exists.
+    ///
+    /// Returns `true` if the entry was found (and `out` is populated),
+    /// or `false` if no entry exists (and `out` is filled with uniform).
+    #[inline]
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn get_average_strategy(
+        &self,
+        info_set: &InfoSet,
+        num_actions: usize,
+        out: &mut [f64],
+    ) -> bool {
+        if let Some(entry) = self.entries.get(info_set) {
+            entry.get_average_strategy(out);
+            true
+        } else {
+            let len = num_actions.min(out.len());
+            if len > 0 {
+                let uniform = 1.0 / num_actions as f64;
+                out[..len].fill(uniform);
+            }
+            false
         }
     }
 

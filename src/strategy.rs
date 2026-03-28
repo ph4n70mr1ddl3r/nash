@@ -6,6 +6,7 @@ use std::io::{BufReader, BufWriter};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::trace;
 
 use crate::game::{Action, InfoSet};
 
@@ -172,6 +173,8 @@ impl Strategy {
     ) {
         if let Some(mut entry) = self.entries.get_mut(info_set) {
             entry.update(regrets, strategy, pi_o, iter_weight);
+        } else {
+            trace!("update_entry: info set not found, update dropped");
         }
     }
 

@@ -375,8 +375,7 @@ impl CFRSolver {
 
         let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let hole = &hands[player.index()];
-        let opp_index = 1 - player.index();
-        let opp_hole = &hands[opp_index];
+        let opp_hole = &hands[player.opponent().index()];
         let player_committed = state.committed[player.index()] as f64;
 
         let hand = Hand::evaluate(hole, board_set.as_slice());

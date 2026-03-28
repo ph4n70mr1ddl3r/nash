@@ -44,6 +44,15 @@ impl Card {
         self.suit
     }
 
+    /// Returns `true` if this card has a valid rank and suit.
+    ///
+    /// Placeholder cards (created via [`Card::placeholder`]) return `false`.
+    #[must_use]
+    #[inline]
+    pub const fn is_valid(self) -> bool {
+        self.rank >= Self::MIN_RANK && self.rank <= Self::MAX_RANK && self.suit < Self::NUM_SUITS
+    }
+
     /// Returns a static reference to all 52 cards in the deck.
     #[must_use]
     pub fn all() -> &'static [Self; NUM_CARDS] {

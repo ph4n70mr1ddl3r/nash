@@ -140,17 +140,11 @@ mod tests {
 
     #[test]
     fn test_hand_straight_flush() {
-        let hole = [card(14, 0), card(13, 0)];
-        let board = [
-            card(12, 0),
-            card(11, 0),
-            card(10, 0),
-            card(3, 1),
-            card(2, 2),
-        ];
+        let hole = [card(9, 0), card(8, 0)];
+        let board = [card(7, 0), card(6, 0), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
-        assert_eq!(hand.hand_type(), HandType::RoyalFlush);
-        let four_kind_hand = Hand::evaluate(&[card(5, 0), card(5, 1)], &board);
+        assert_eq!(hand.hand_type(), HandType::StraightFlush);
+        let four_kind_hand = Hand::evaluate(&[card(5, 1), card(5, 2)], &board);
         assert!(hand > four_kind_hand);
     }
 
@@ -413,6 +407,13 @@ mod tests {
         assert!(Card::new(1, 0).is_none());
         assert!(Card::new(15, 0).is_none());
         assert!(Card::new(7, 4).is_none());
+    }
+
+    #[test]
+    fn test_card_is_valid() {
+        assert!(card(2, 0).is_valid());
+        assert!(card(14, 3).is_valid());
+        assert!(!Card::default().is_valid());
     }
 
     #[test]

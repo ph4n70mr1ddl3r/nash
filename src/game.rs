@@ -1,6 +1,7 @@
 //! Game state machine, actions, player positions, and streets.
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Serialize};
 
@@ -125,6 +126,121 @@ impl fmt::Display for Action {
             Self::Raise(amount) => write!(f, "Raise({amount})"),
             Self::AllIn => write!(f, "AllIn"),
         }
+    }
+}
+
+/// Maximum number of actions tracked in an `ActionHistory`.
+const MAX_HISTORY_LEN: usize = 24;
+
+/// Fixed-size action history that avoids heap allocation.
+///
+/// Used as part of [`InfoSet`] which serves as a `DashMap` key in the
+/// CFR strategy table. By keeping the history inline, cloning an info set
+/// is a single `memcpy` instead of a heap allocation.
+#[derive(Debug, Clone)]
+pub struct ActionHistory {
+    actions: [Action; MAX_HISTORY_LEN],
+    len: u8,
+}
+
+impl ActionHistory {
+    /// Creates an empty action history.
+    #[must_use]
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            actions: [Action::Fold; MAX_HISTORY_LEN],
+            len: 0,
+        }
+    }
+
+    /// Appends an action. Silently drops if at capacity.
+    #[inline]
+    pub const fn push(&mut self, action: Action) {
+        if (self.len as usize) < MAX_HISTORY_LEN {
+            self.actions[self.len as usize] = action;
+            self.len += 1;
+        }
+    }
+
+    /// Returns the number of recorded actions.
+    #[must_use]
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Returns `true` if no actions have been recorded.
+    #[must_use]
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Returns the recorded actions as a slice.
+    #[must_use]
+    #[inline]
+    pub fn as_slice(&self) -> &[Action] {
+        &self.actions[..self.len as usize]
+    }
+
+    /// Returns an iterator over the recorded actions.
+    #[inline]
+    pub fn iter(&self) -> std::slice::Iter<'_, Action> {
+        self.as_slice().iter()
+    }
+}
+
+impl Default for ActionHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Hash for ActionHistory {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.len.hash(state);
+        for action in &self.actions[..self.len as usize] {
+            action.hash(state);
+        }
+    }
+}
+
+impl PartialEq for ActionHistory {
+    fn eq(&self, other: &Self) -> bool {
+        self.len == other.len && self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for ActionHistory {}
+
+impl Serialize for ActionHistory {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.as_slice().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ActionHistory {
+    #[allow(clippy::cast_possible_truncation)]
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let actions: Vec<Action> = Vec::deserialize(deserializer)?;
+        let mut arr = [Action::Fold; MAX_HISTORY_LEN];
+        let len = actions.len().min(MAX_HISTORY_LEN);
+        arr[..len].copy_from_slice(&actions[..len]);
+        Ok(Self {
+            actions: arr,
+            len: len as u8,
+        })
+    }
+}
+
+impl<'a> IntoIterator for &'a ActionHistory {
+    type Item = &'a Action;
+    type IntoIter = std::slice::Iter<'a, Action>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
     }
 }
 
@@ -420,7 +536,7 @@ pub struct InfoSet {
     /// Community cards visible so far.
     pub board: CardSet,
     /// Betting history.
-    pub history: Vec<Action>,
+    pub history: ActionHistory,
 }
 
 impl InfoSet {
@@ -438,13 +554,13 @@ impl InfoSet {
             street,
             hole: *hole,
             board,
-            history: Vec::new(),
+            history: ActionHistory::new(),
         }
     }
 
     /// Adds an action to the history.
     #[inline]
-    pub fn add_action(&mut self, action: &Action) {
+    pub const fn add_action(&mut self, action: &Action) {
         self.history.push(*action);
     }
 }

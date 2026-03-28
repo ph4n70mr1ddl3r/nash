@@ -28,8 +28,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use nash::{
-        Action, CFRConfig, Card, CardSet, Deck, GameConfig, GameState, Hand, HandType, InfoSet,
-        Player, Strategy, StrategyEntry, Street,
+        Action, CFRConfig, CFRSolver, Card, CardSet, Deck, GameConfig, GameState, Hand, HandType,
+        InfoSet, Player, Strategy, StrategyEntry, Street,
     };
 
     fn card(rank: u8, suit: u8) -> Card {
@@ -41,6 +41,7 @@ mod tests {
         let hole = [card(14, 0), card(12, 1)];
         let board = [card(10, 2), card(8, 3), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::HighCard);
         let low_hand = Hand::evaluate(&[card(9, 0), card(7, 1)], &board);
         assert!(hand > low_hand);
     }
@@ -50,6 +51,7 @@ mod tests {
         let hole = [card(14, 0), card(14, 1)];
         let board = [card(10, 2), card(8, 3), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::Pair);
         let high_card_hand = Hand::evaluate(&[card(13, 0), card(12, 1)], &board);
         assert!(hand > high_card_hand);
     }
@@ -59,6 +61,7 @@ mod tests {
         let hole = [card(14, 0), card(14, 1)];
         let board = [card(10, 0), card(10, 1), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::TwoPair);
         let pair_hand = Hand::evaluate(&[card(14, 0), card(13, 1)], &board);
         assert!(hand > pair_hand);
     }
@@ -68,6 +71,7 @@ mod tests {
         let hole = [card(14, 0), card(14, 1)];
         let board = [card(14, 2), card(8, 3), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::ThreeOfAKind);
         let two_pair_hand = Hand::evaluate(&[card(10, 0), card(10, 1)], &board);
         assert!(hand > two_pair_hand);
     }
@@ -83,6 +87,7 @@ mod tests {
             card(2, 2),
         ];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::Straight);
         let three_kind_hand = Hand::evaluate(&[card(10, 0), card(10, 1)], &board);
         assert!(hand > three_kind_hand);
     }
@@ -92,6 +97,7 @@ mod tests {
         let hole = [card(14, 0), card(2, 1)];
         let board = [card(5, 2), card(4, 3), card(3, 0), card(10, 1), card(9, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::Straight);
         let high_card_hand = Hand::evaluate(&[card(13, 0), card(12, 1)], &board);
         assert!(hand > high_card_hand);
     }
@@ -99,8 +105,9 @@ mod tests {
     #[test]
     fn test_hand_flush() {
         let hole = [card(14, 0), card(12, 0)];
-        let board = [card(10, 0), card(8, 0), card(5, 1), card(3, 1), card(2, 2)];
+        let board = [card(10, 0), card(8, 0), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::Flush);
         let straight_hand = Hand::evaluate(&[card(11, 1), card(9, 2)], &board);
         assert!(hand > straight_hand);
     }
@@ -116,6 +123,7 @@ mod tests {
             card(2, 2),
         ];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::FullHouse);
         let flush_hand = Hand::evaluate(&[card(12, 0), card(11, 0)], &board);
         assert!(hand > flush_hand);
     }
@@ -125,6 +133,7 @@ mod tests {
         let hole = [card(14, 0), card(14, 1)];
         let board = [card(14, 2), card(14, 3), card(5, 0), card(3, 1), card(2, 2)];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::FourOfAKind);
         let full_house_hand = Hand::evaluate(&[card(10, 0), card(10, 1)], &board);
         assert!(hand > full_house_hand);
     }
@@ -140,6 +149,7 @@ mod tests {
             card(2, 2),
         ];
         let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::RoyalFlush);
         let four_kind_hand = Hand::evaluate(&[card(5, 0), card(5, 1)], &board);
         assert!(hand > four_kind_hand);
     }
@@ -473,5 +483,113 @@ mod tests {
         let display = format!("{info_set}");
         assert!(display.contains("SB"));
         assert!(display.contains("Flop"));
+    }
+
+    #[test]
+    fn test_card_set_contains() {
+        let ace = card(14, 0);
+        let king = card(13, 1);
+        let queen = card(12, 2);
+        let set = CardSet::from_cards(&[ace, king]);
+        assert!(set.contains(&ace));
+        assert!(set.contains(&king));
+        assert!(!set.contains(&queen));
+    }
+
+    #[test]
+    fn test_strategy_save_load_roundtrip() {
+        let dir = std::env::temp_dir().join("nash_test_strategy.bin");
+        let path = dir.to_str().unwrap();
+
+        let strategy = Strategy::new();
+        let hole = [card(14, 0), card(13, 1)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        let info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+
+        let mut strat = [0.0f64; 8];
+        strategy.get_strategy(&info_set, 3, &mut strat);
+        strategy.update_entry(&info_set, &[1.0, 2.0, 3.0], &[0.3, 0.4, 0.3], 1.0, 1.0);
+
+        let mut expected = [0.0f64; 8];
+        strategy.get_strategy(&info_set, 3, &mut expected);
+
+        strategy.save(path).unwrap();
+        let loaded = Strategy::load(path).unwrap();
+
+        assert_eq!(loaded.len(), 1);
+        let mut loaded_strat = [0.0f64; 8];
+        loaded.get_strategy(&info_set, 3, &mut loaded_strat);
+        for (a, b) in expected.iter().zip(loaded_strat.iter()) {
+            assert!((a - b).abs() < 1e-10);
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_solver_runs() {
+        let game_config = GameConfig {
+            initial_stacks: [100, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let cfr_config = CFRConfig {
+            num_iterations: 3,
+            log_interval: 1,
+            save_interval: 100,
+            save_path: None,
+            use_chance_sampling: true,
+        };
+
+        let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();
+        solver.solve();
+        assert!(solver.strategy.len() > 0);
+    }
+
+    #[test]
+    fn test_action_history_push_and_iter() {
+        use nash::ActionHistory;
+        let mut history = ActionHistory::new();
+        assert!(history.is_empty());
+        assert_eq!(history.len(), 0);
+
+        history.push(Action::Call);
+        history.push(Action::Raise(10));
+        assert!(!history.is_empty());
+        assert_eq!(history.len(), 2);
+
+        let actions: Vec<&Action> = history.iter().collect();
+        assert_eq!(actions[0], &Action::Call);
+        assert_eq!(actions[1], &Action::Raise(10));
+    }
+
+    #[test]
+    fn test_action_history_equality() {
+        use nash::ActionHistory;
+        let mut a = ActionHistory::new();
+        let mut b = ActionHistory::new();
+        a.push(Action::Check);
+        a.push(Action::Bet(5));
+        b.push(Action::Check);
+        b.push(Action::Bet(5));
+        assert_eq!(a, b);
+
+        b.push(Action::Call);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn test_deck_fixed_size() {
+        let mut deck = Deck::new();
+        assert_eq!(deck.deal(52).len(), 52);
+        assert!(deck.deal(1).is_empty());
+
+        let mut deck2 = Deck::new();
+        use rand::prelude::*;
+        let mut rng = thread_rng();
+        deck2.shuffle(&mut rng);
+        let cards = deck2.deal(5);
+        assert_eq!(cards.len(), 5);
     }
 }

@@ -152,6 +152,13 @@ impl CardSet {
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
+
+    /// Returns `true` if the set contains the given card.
+    #[must_use]
+    #[inline]
+    pub fn contains(&self, card: &Card) -> bool {
+        self.as_slice().contains(card)
+    }
 }
 
 impl Default for CardSet {
@@ -163,7 +170,7 @@ impl Default for CardSet {
 /// A standard 52-card deck that can be shuffled and dealt.
 #[derive(Debug, Clone)]
 pub struct Deck {
-    cards: Vec<Card>,
+    cards: [Card; NUM_CARDS],
     pos: usize,
 }
 
@@ -172,7 +179,7 @@ impl Deck {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            cards: Card::all().to_vec(),
+            cards: *Card::all(),
             pos: 0,
         }
     }
@@ -188,7 +195,7 @@ impl Deck {
     /// Deals one card from the deck, returning `None` if the deck is exhausted.
     #[inline]
     #[must_use]
-    pub fn deal_one(&mut self) -> Option<Card> {
+    pub const fn deal_one(&mut self) -> Option<Card> {
         if self.pos < self.cards.len() {
             let card = self.cards[self.pos];
             self.pos += 1;

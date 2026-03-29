@@ -338,7 +338,8 @@ impl GameState {
     /// Creates a new game state with blinds posted.
     #[must_use]
     #[inline]
-    pub const fn new(config: GameConfig) -> Self {
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn new(config: GameConfig) -> Self {
         Self {
             street: Street::Preflop,
             current_player: Player::SB,

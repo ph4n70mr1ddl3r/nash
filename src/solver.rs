@@ -205,6 +205,8 @@ impl CFRSolver {
         l: usize,
         iter_weight: f64,
     ) {
+        use rand::seq::SliceRandom;
+
         let hole_sb = [all_cards[i], all_cards[j]];
         let hole_bb = [all_cards[k], all_cards[l]];
         let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
@@ -218,7 +220,7 @@ impl CFRSolver {
             }
         }
 
-        remaining[..remaining_len].shuffle(rng);
+        remaining[..remaining_len].partial_shuffle(rng, 5);
 
         let hands = [hole_sb, hole_bb];
         let state = GameState::new(config);

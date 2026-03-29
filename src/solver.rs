@@ -102,10 +102,10 @@ impl CFRSolver {
             if iter % self.cfr_config.log_interval == 0 {
                 let elapsed = start.elapsed();
                 let stats = self.strategy.stats();
-                let exploitability = self.estimate_exploitability_placeholder();
+                let exploitability = self.compute_exploitability(50);
 
                 info!(
-                    "Iteration {}: {} info sets, {} MB, exploitability (placeholder): {:.6}, elapsed: {:?}",
+                    "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
                     iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
                 );
             }
@@ -335,22 +335,100 @@ impl CFRSolver {
         node_value
     }
 
-    /// Returns a placeholder estimate of strategy exploitability.
+    /// Computes the exploitability of the current average strategy via
+    /// Monte Carlo best-response estimation.
     ///
-    /// **Note:** This is a stub implementation that returns `1/(iteration+1)` for
-    /// progress tracking purposes only. A proper exploitability calculation requires
-    /// computing best response values through a separate traversal, which is not
-    /// yet implemented. The returned value decreases with iterations but does not
-    /// represent actual exploitability in game units.
+    /// For each sampled deal, computes the best-response value for both
+    /// players against the opponent's average strategy. The exploitability
+    /// is the average of both players' best-response values.
     ///
-    /// For production use, implement a proper best response calculation that:
-    /// 1. Computes the best response strategy for each player against the current strategy
-    /// 2. Calculates the expected value of each best response
-    /// 3. Returns the average of both players' best response values
-    #[inline]
+    /// Higher `num_samples` gives a more accurate estimate but takes longer.
     #[allow(clippy::cast_precision_loss)]
-    fn estimate_exploitability_placeholder(&self) -> f64 {
-        1.0 / (self.iteration as f64 + 1.0)
+    #[must_use]
+    pub fn compute_exploitability(&self, num_samples: usize) -> f64 {
+        let strategy = self.strategy.clone();
+        let config = self.config;
+
+        let total: f64 = (0..num_samples)
+            .into_par_iter()
+            .map(|_| {
+                let mut rng = thread_rng();
+                let mut deck = Deck::new();
+                deck.shuffle(&mut rng);
+
+                let hole_cards = deck.deal_into::<4>();
+                let hands = [
+                    [hole_cards[0], hole_cards[1]],
+                    [hole_cards[2], hole_cards[3]],
+                ];
+                let board = deck.deal_into::<5>();
+
+                let mut br_sum = 0.0f64;
+                for &player in &[Player::SB, Player::BB] {
+                    let state = GameState::new(config);
+                    br_sum +=
+                        Self::best_response_traversal(&strategy, &state, &hands, &board, player);
+                }
+                br_sum
+            })
+            .sum();
+
+        total / (2.0 * num_samples as f64)
+    }
+
+    #[inline]
+    fn best_response_traversal(
+        strategy: &Arc<Strategy>,
+        state: &GameState,
+        hands: &[[Card; 2]],
+        board: &[Card],
+        br_player: Player,
+    ) -> f64 {
+        if state.is_terminal() {
+            return Self::get_utility_impl(state, hands, board, br_player);
+        }
+
+        let current = state.current_player;
+        let actions = state.legal_actions();
+        if actions.is_empty() {
+            return Self::get_utility_impl(state, hands, board, br_player);
+        }
+
+        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
+        let hole = &hands[current.index()];
+        let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
+        for action in &state.history {
+            info_set.add_action(action);
+        }
+
+        if current == br_player {
+            let mut best_value = f64::NEG_INFINITY;
+            for &action in &actions {
+                let new_state = state.apply_action(action);
+                let value =
+                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player);
+                if value > best_value {
+                    best_value = value;
+                }
+            }
+            best_value
+        } else {
+            let mut strat = [0.0f64; MAX_ACTIONS];
+            let _found = strategy.get_average_strategy(
+                &info_set,
+                actions.len(),
+                &mut strat[..actions.len()],
+            );
+
+            let mut node_value = 0.0f64;
+            for (i, &action) in actions.iter().enumerate() {
+                let new_state = state.apply_action(action);
+                let value =
+                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player);
+                node_value += strat[i] * value;
+            }
+            node_value
+        }
     }
 
     #[inline]

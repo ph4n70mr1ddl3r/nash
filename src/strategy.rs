@@ -175,12 +175,15 @@ impl Strategy {
     /// Gets or creates the strategy for an info set.
     #[inline]
     pub fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
-        use dashmap::mapref::entry::Entry;
+        if let Some(existing) = self.entries.get(info_set) {
+            existing.get_strategy(out);
+            return;
+        }
         match self.entries.entry(info_set.clone()) {
-            Entry::Occupied(e) => {
+            dashmap::mapref::entry::Entry::Occupied(e) => {
                 e.get().get_strategy(out);
             }
-            Entry::Vacant(e) => {
+            dashmap::mapref::entry::Entry::Vacant(e) => {
                 let entry = StrategyEntry::new(num_actions);
                 entry.get_strategy(out);
                 e.insert(entry);
@@ -227,14 +230,10 @@ impl Strategy {
         pi_o: f64,
         iter_weight: f64,
     ) {
-        use dashmap::mapref::entry::Entry;
-        match self.entries.entry(info_set.clone()) {
-            Entry::Occupied(mut e) => {
-                e.get_mut().update(regrets, strategy, pi_o, iter_weight);
-            }
-            Entry::Vacant(_) => {
-                trace!("update_entry: info set not found, update dropped");
-            }
+        if let Some(mut entry) = self.entries.get_mut(info_set) {
+            entry.update(regrets, strategy, pi_o, iter_weight);
+        } else {
+            trace!("update_entry: info set not found, update dropped");
         }
     }
 

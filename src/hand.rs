@@ -80,16 +80,17 @@ impl Hand {
         }
 
         let flush = Self::find_flush(cards);
-        let straight = Self::find_straight(cards);
 
-        if let (Some((flush_cards, flush_len)), Some(straight_high)) = (&flush, straight) {
-            if Self::is_straight_flush(&flush_cards[..*flush_len], straight_high) {
-                if straight_high == 14 {
+        if let Some((flush_cards, flush_len)) = &flush {
+            if let Some(sf_high) = Self::find_straight(&flush_cards[..*flush_len]) {
+                if sf_high == 14 {
                     return Self::hand_rank(9, &[14]);
                 }
-                return Self::hand_rank(8, &[straight_high]);
+                return Self::hand_rank(8, &[sf_high]);
             }
         }
+
+        let straight = Self::find_straight(cards);
 
         let ranks: [u8; 7] = {
             let mut arr = [0u8; 7];
@@ -223,11 +224,6 @@ impl Hand {
             return Some(5);
         }
         None
-    }
-
-    #[inline]
-    fn is_straight_flush(flush_cards: &[Card], straight_high: u8) -> bool {
-        Self::find_straight(flush_cards) == Some(straight_high)
     }
 
     #[inline]

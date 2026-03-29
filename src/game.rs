@@ -323,7 +323,7 @@ pub struct GameState {
     /// Amount each player has committed to the pot.
     pub committed: [u64; NUM_PLAYERS],
     /// History of actions taken in this hand.
-    pub history: Vec<Action>,
+    pub history: ActionHistory,
     /// Minimum raise size for the current betting round.
     pub min_raise: u64,
     /// The highest bet amount in the current round.
@@ -347,7 +347,7 @@ impl GameState {
             current_player: Player::SB,
             pot: config.small_blind + config.big_blind,
             committed: [config.small_blind, config.big_blind],
-            history: Vec::new(),
+            history: ActionHistory::new(),
             min_raise: config.min_bet,
             last_bet: config.big_blind,
             config,
@@ -374,7 +374,7 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn is_fold(&self) -> bool {
-        matches!(self.history.last(), Some(Action::Fold))
+        matches!(self.history.as_slice().last(), Some(Action::Fold))
     }
 
     /// Returns `true` if the hand reached showdown on the river.
@@ -395,7 +395,7 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn betting_round_closed(&self) -> bool {
-        let round_actions = &self.history[self.round_start..];
+        let round_actions = &self.history.as_slice()[self.round_start..];
         let Some(last) = round_actions.last() else {
             return false;
         };
@@ -415,7 +415,7 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn winner(&self) -> Option<Player> {
-        if matches!(self.history.last(), Some(Action::Fold)) {
+        if matches!(self.history.as_slice().last(), Some(Action::Fold)) {
             Some(self.current_player)
         } else {
             None

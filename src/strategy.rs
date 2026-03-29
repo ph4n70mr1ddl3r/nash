@@ -175,10 +175,6 @@ impl Strategy {
     /// Gets or creates the strategy for an info set.
     #[inline]
     pub fn get_strategy(&self, info_set: &InfoSet, num_actions: usize, out: &mut [f64]) {
-        if let Some(existing) = self.entries.get(info_set) {
-            existing.get_strategy(out);
-            return;
-        }
         match self.entries.entry(info_set.clone()) {
             dashmap::mapref::entry::Entry::Occupied(e) => {
                 e.get().get_strategy(out);

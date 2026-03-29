@@ -28,6 +28,9 @@ use crate::game::{GameState, InfoSet, Player};
 use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
+/// Minimum reach probability product before pruning a subtree.
+const CFR_PRUNE_THRESHOLD: f64 = 1e-10;
+
 /// Error type for solver operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 #[non_exhaustive]
@@ -264,6 +267,10 @@ impl CFRSolver {
     ) -> f64 {
         if state.is_terminal() {
             return Self::get_utility_impl(state, hands, board, player);
+        }
+
+        if pi_o < CFR_PRUNE_THRESHOLD && pi_neg_o < CFR_PRUNE_THRESHOLD {
+            return 0.0;
         }
 
         let current = state.current_player;

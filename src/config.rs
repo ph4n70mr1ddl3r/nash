@@ -97,6 +97,9 @@ pub struct CFRConfig {
     pub save_path: Option<String>,
     /// Whether to use chance sampling for card dealing.
     pub use_chance_sampling: bool,
+    /// Number of chance samples per iteration when using chance sampling.
+    /// Set to 0 to auto-detect based on available CPU parallelism.
+    pub samples_per_iteration: usize,
 }
 
 impl CFRConfig {
@@ -128,6 +131,7 @@ impl Default for CFRConfig {
             save_interval: 50,
             save_path: None,
             use_chance_sampling: true,
+            samples_per_iteration: 0,
         }
     }
 }

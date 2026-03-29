@@ -136,31 +136,42 @@ impl CFRSolver {
 
     #[inline]
     fn run_iteration_sampled(&self, iter_weight: f64) {
-        let mut rng = thread_rng();
-        let mut deck = Deck::new();
-        deck.shuffle(&mut rng);
+        let num_samples = if self.cfr_config.samples_per_iteration > 0 {
+            self.cfr_config.samples_per_iteration
+        } else {
+            rayon::current_num_threads().max(1)
+        };
 
-        let hole_cards = deck.deal_into::<4>();
-        let hole_sb = [hole_cards[0], hole_cards[1]];
-        let hole_bb = [hole_cards[2], hole_cards[3]];
+        let strategy = self.strategy.clone();
+        let config = self.config;
 
-        let board = deck.deal_into::<5>();
-        let hands = [hole_sb, hole_bb];
+        (0..num_samples).into_par_iter().for_each(move |_| {
+            let mut rng = thread_rng();
+            let mut deck = Deck::new();
+            deck.shuffle(&mut rng);
 
-        let state = GameState::new(self.config);
+            let hole_cards = deck.deal_into::<4>();
+            let hole_sb = [hole_cards[0], hole_cards[1]];
+            let hole_bb = [hole_cards[2], hole_cards[3]];
 
-        for &player in &[Player::SB, Player::BB] {
-            Self::cfr_traversal_static(
-                &self.strategy,
-                &state,
-                &hands,
-                &board,
-                player,
-                1.0,
-                1.0,
-                iter_weight,
-            );
-        }
+            let board = deck.deal_into::<5>();
+            let hands = [hole_sb, hole_bb];
+
+            let state = GameState::new(config);
+
+            for &player in &[Player::SB, Player::BB] {
+                Self::cfr_traversal_static(
+                    &strategy,
+                    &state,
+                    &hands,
+                    &board,
+                    player,
+                    1.0,
+                    1.0,
+                    iter_weight,
+                );
+            }
+        });
     }
 
     #[inline]

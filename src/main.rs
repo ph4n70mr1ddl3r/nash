@@ -16,6 +16,7 @@ fn main() {
         save_interval: 50,
         save_path: Some("strategy.bin".to_string()),
         use_chance_sampling: true,
+        samples_per_iteration: 0,
     };
 
     let mut solver = CFRSolver::new(game_config, cfr_config).unwrap_or_else(|e| {
@@ -592,6 +593,7 @@ mod tests {
             save_interval: 100,
             save_path: None,
             use_chance_sampling: true,
+            samples_per_iteration: 2,
         };
 
         let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();

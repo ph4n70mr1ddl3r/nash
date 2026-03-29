@@ -536,6 +536,12 @@ mod tests {
             ..CFRConfig::default()
         };
         assert!(invalid_iterations.validate().is_err());
+
+        let invalid_threshold = CFRConfig {
+            convergence_threshold: -1.0,
+            ..CFRConfig::default()
+        };
+        assert!(invalid_threshold.validate().is_err());
     }
 
     #[test]
@@ -619,6 +625,7 @@ mod tests {
             use_chance_sampling: true,
             samples_per_iteration: 2,
             exploitability_interval: 0,
+            convergence_threshold: 0.0,
         };
 
         let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();

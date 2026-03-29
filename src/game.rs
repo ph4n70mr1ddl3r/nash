@@ -12,9 +12,13 @@ use crate::strategy::MAX_ACTIONS;
 /// Number of players in heads-up poker.
 pub const NUM_PLAYERS: usize = 2;
 
+/// Pot fractions used to generate bet sizing options (1/3-pot, 2/3-pot, full pot).
 const BET_FRACTIONS: &[u64] = &[1, 2, 3];
+/// Denominator for [`BET_FRACTIONS`] (divides pot into thirds).
 const BET_DENOM: u64 = 3;
+/// Pot fractions used to generate raise sizing options (1/2-pot, full pot over the call).
 const RAISE_FRACTIONS: &[u64] = &[1, 2];
+/// Denominator for [`RAISE_FRACTIONS`] (divides pot into halves).
 const RAISE_DENOM: u64 = 2;
 
 /// Player position in heads-up poker.

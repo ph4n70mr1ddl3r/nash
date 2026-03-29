@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use rand::prelude::*;
+use rand::seq::SliceRandom;
 use rayon::prelude::*;
 use tracing::{info, warn};
 
@@ -114,6 +115,16 @@ impl CFRSolver {
                         "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
                         iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
                     );
+
+                    if self.cfr_config.convergence_threshold > 0.0
+                        && exploitability <= self.cfr_config.convergence_threshold
+                    {
+                        info!(
+                            "Converged at iteration {iter} (exploitability {exploitability:.6} <= threshold {})",
+                            self.cfr_config.convergence_threshold
+                        );
+                        break;
+                    }
                 } else {
                     info!(
                         "Iteration {}: {} info sets, {} MB, elapsed: {:?}",
@@ -228,8 +239,6 @@ impl CFRSolver {
         l: usize,
         iter_weight: f64,
     ) {
-        use rand::seq::SliceRandom;
-
         let hole_sb = [all_cards[i], all_cards[j]];
         let hole_bb = [all_cards[k], all_cards[l]];
         let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);

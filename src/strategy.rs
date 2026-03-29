@@ -6,9 +6,8 @@ use std::io::{BufReader, BufWriter};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::warn;
 
-use crate::game::{Action, InfoSet};
+use crate::game::InfoSet;
 
 /// Maximum number of actions supported at any decision point.
 pub const MAX_ACTIONS: usize = 8;
@@ -215,8 +214,8 @@ impl Strategy {
 
     /// Updates the strategy entry for an info set.
     ///
-    /// If the entry does not exist (shouldn't happen in normal operation),
-    /// the update is silently dropped and a trace log is emitted.
+    /// If the entry does not exist, a new one is created and updated in place
+    /// using an atomic upsert to avoid the read-then-write race.
     #[inline]
     pub fn update_entry(
         &self,
@@ -226,10 +225,17 @@ impl Strategy {
         pi_o: f64,
         iter_weight: f64,
     ) {
-        if let Some(mut entry) = self.entries.get_mut(info_set) {
-            entry.update(regrets, strategy, pi_o, iter_weight);
-        } else {
-            warn!("update_entry: info set not found, update dropped");
+        use dashmap::mapref::entry::Entry;
+
+        match self.entries.entry(info_set.clone()) {
+            Entry::Occupied(mut e) => {
+                e.get_mut().update(regrets, strategy, pi_o, iter_weight);
+            }
+            Entry::Vacant(e) => {
+                let mut entry = StrategyEntry::new(regrets.len().max(1));
+                entry.update(regrets, strategy, pi_o, iter_weight);
+                e.insert(entry);
+            }
         }
     }
 
@@ -239,8 +245,10 @@ impl Strategy {
     #[allow(clippy::cast_possible_truncation)]
     pub fn stats(&self) -> StrategyStats {
         let info_sets = self.entries.len();
-        let entry_size = std::mem::size_of::<InfoSet>() + std::mem::size_of::<StrategyEntry>();
-        let bytes_per_entry = entry_size + 4 * std::mem::size_of::<Action>();
+        let key_size = std::mem::size_of::<InfoSet>();
+        let val_size = std::mem::size_of::<StrategyEntry>();
+        let ptr_overhead = std::mem::size_of::<usize>() * 2;
+        let bytes_per_entry = key_size + val_size + ptr_overhead;
         let total_bytes = (info_sets as u128) * (bytes_per_entry as u128);
         let memory_mb = (total_bytes / 1_000_000) as u64;
         StrategyStats {

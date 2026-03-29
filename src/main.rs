@@ -18,6 +18,7 @@ fn main() {
         use_chance_sampling: true,
         samples_per_iteration: 0,
         exploitability_interval: 50,
+        convergence_threshold: 0.0,
     };
 
     let mut solver = CFRSolver::new(game_config, cfr_config).unwrap_or_else(|e| {

@@ -82,9 +82,9 @@ pub enum CFRConfigError {
     /// Save interval must be positive.
     #[error("save_interval must be positive")]
     InvalidSaveInterval,
-    /// Exploitability interval must not be negative when non-zero.
-    #[error("exploitability_interval must be 0 or positive")]
-    InvalidExploitabilityInterval,
+    /// Convergence threshold must be non-negative.
+    #[error("convergence_threshold must be >= 0")]
+    InvalidConvergenceThreshold,
 }
 
 /// Configuration for the CFR+ solver.
@@ -106,6 +106,9 @@ pub struct CFRConfig {
     /// How often to compute exploitability via Monte Carlo best-response (in iterations).
     /// Set to 0 to disable (recommended — exploitability is expensive).
     pub exploitability_interval: usize,
+    /// Exploitability threshold for early stopping. The solver will stop if the
+    /// estimated exploitability falls below this value. Set to 0.0 to disable.
+    pub convergence_threshold: f64,
 }
 
 impl CFRConfig {
@@ -125,6 +128,9 @@ impl CFRConfig {
         if self.save_interval == 0 {
             return Err(CFRConfigError::InvalidSaveInterval);
         }
+        if self.convergence_threshold < 0.0 {
+            return Err(CFRConfigError::InvalidConvergenceThreshold);
+        }
         Ok(())
     }
 }
@@ -139,6 +145,7 @@ impl Default for CFRConfig {
             use_chance_sampling: true,
             samples_per_iteration: 0,
             exploitability_interval: 0,
+            convergence_threshold: 0.0,
         }
     }
 }

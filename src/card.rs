@@ -230,6 +230,20 @@ impl Deck {
         self.pos += count;
         result
     }
+
+    /// Deals exactly `N` cards into a stack-allocated array.
+    ///
+    /// # Panics
+    ///
+    /// Panics if fewer than `N` cards remain in the deck.
+    #[inline]
+    #[must_use]
+    pub fn deal_into<const N: usize>(&mut self) -> [Card; N] {
+        let mut arr = [Card::placeholder(); N];
+        arr.copy_from_slice(&self.cards[self.pos..self.pos + N]);
+        self.pos += N;
+        arr
+    }
 }
 
 impl Default for Deck {

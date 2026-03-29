@@ -377,17 +377,20 @@ impl GameState {
     #[inline]
     #[allow(clippy::missing_const_for_fn)]
     pub fn new(config: GameConfig) -> Self {
+        let committed = [config.small_blind, config.big_blind];
+        let all_in_showdown =
+            committed[0] >= config.initial_stacks[0] && committed[1] >= config.initial_stacks[1];
         Self {
             street: Street::Preflop,
             current_player: Player::SB,
             pot: config.small_blind + config.big_blind,
-            committed: [config.small_blind, config.big_blind],
+            committed,
             history: ActionHistory::new(),
             min_raise: config.min_bet,
             last_bet: config.big_blind,
             config,
             round_start: 0,
-            all_in_showdown: false,
+            all_in_showdown,
         }
     }
 
@@ -588,24 +591,25 @@ impl GameState {
 
         new_state.history.push(action);
 
-        if !new_state.is_fold()
-            && new_state.betting_round_closed()
-            && new_state.street != Street::River
-        {
+        if new_state.is_fold() {
+            new_state.current_player = self.current_player.opponent();
+        } else {
             let both_all_in = new_state.committed[0] >= new_state.config.initial_stacks[0]
                 && new_state.committed[1] >= new_state.config.initial_stacks[1];
 
             if both_all_in {
                 new_state.all_in_showdown = true;
-            } else if let Some(next_street) = new_state.street.next() {
-                new_state.street = next_street;
-                new_state.last_bet = 0;
-                new_state.min_raise = new_state.config.min_bet;
-                new_state.current_player = Player::SB;
-                new_state.round_start = new_state.history.len();
+            } else if new_state.betting_round_closed() && new_state.street != Street::River {
+                if let Some(next_street) = new_state.street.next() {
+                    new_state.street = next_street;
+                    new_state.last_bet = 0;
+                    new_state.min_raise = new_state.config.min_bet;
+                    new_state.current_player = Player::SB;
+                    new_state.round_start = new_state.history.len();
+                }
+            } else {
+                new_state.current_player = self.current_player.opponent();
             }
-        } else {
-            new_state.current_player = self.current_player.opponent();
         }
         new_state
     }

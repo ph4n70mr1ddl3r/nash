@@ -701,4 +701,49 @@ mod tests {
         assert!(state.is_all_in_showdown());
         assert!(!state.is_fold());
     }
+
+    #[test]
+    fn test_all_in_vs_all_in_immediate_showdown() {
+        let config = GameConfig {
+            initial_stacks: [10, 10],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::AllIn);
+        let state = state.apply_action(Action::AllIn);
+
+        assert!(state.is_terminal());
+        assert!(state.is_all_in_showdown());
+        assert!(!state.is_fold());
+    }
+
+    #[test]
+    fn test_both_all_in_from_blinds() {
+        let config = GameConfig {
+            initial_stacks: [1, 2],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        assert!(state.is_all_in_showdown());
+        assert!(state.is_terminal());
+    }
+
+    #[test]
+    fn test_cfr_config_validate_log_and_save_intervals() {
+        let invalid_log = CFRConfig {
+            log_interval: 0,
+            ..CFRConfig::default()
+        };
+        assert!(invalid_log.validate().is_err());
+
+        let invalid_save = CFRConfig {
+            save_interval: 0,
+            ..CFRConfig::default()
+        };
+        assert!(invalid_save.validate().is_err());
+    }
 }

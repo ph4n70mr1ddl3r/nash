@@ -103,28 +103,45 @@ impl CFRSolver {
 
             self.run_iteration(iter_weight);
 
+            let mut current_exploitability = None;
+
+            if self.cfr_config.exploitability_interval > 0
+                && iter % self.cfr_config.exploitability_interval == 0
+            {
+                let exploitability = self.compute_exploitability(50);
+                current_exploitability = Some(exploitability);
+
+                if self.cfr_config.convergence_threshold > 0.0
+                    && exploitability <= self.cfr_config.convergence_threshold
+                {
+                    let stats = self.strategy.stats();
+                    info!(
+                        "Converged at iteration {iter} (exploitability {exploitability:.6} <= threshold {}, {} info sets, {} MB)",
+                        self.cfr_config.convergence_threshold,
+                        stats.info_sets,
+                        stats.memory_mb,
+                    );
+
+                    if let Some(ref path) = self.cfr_config.save_path {
+                        if let Err(e) = self.strategy.save(path) {
+                            warn!("Failed to save strategy: {}", e);
+                        } else {
+                            info!("Saved strategy to {}", path);
+                        }
+                    }
+                    break;
+                }
+            }
+
             if iter % self.cfr_config.log_interval == 0 {
                 let elapsed = start.elapsed();
                 let stats = self.strategy.stats();
 
-                if self.cfr_config.exploitability_interval > 0
-                    && iter % self.cfr_config.exploitability_interval == 0
-                {
-                    let exploitability = self.compute_exploitability(50);
+                if let Some(expl) = current_exploitability {
                     info!(
                         "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
-                        iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
+                        iter, stats.info_sets, stats.memory_mb, expl, elapsed
                     );
-
-                    if self.cfr_config.convergence_threshold > 0.0
-                        && exploitability <= self.cfr_config.convergence_threshold
-                    {
-                        info!(
-                            "Converged at iteration {iter} (exploitability {exploitability:.6} <= threshold {})",
-                            self.cfr_config.convergence_threshold
-                        );
-                        break;
-                    }
                 } else {
                     info!(
                         "Iteration {}: {} info sets, {} MB, elapsed: {:?}",
@@ -484,15 +501,18 @@ impl CFRSolver {
         let board_set = CardSet::from_cards(&board[..visible]);
         let hole = &hands[player.index()];
         let opp_hole = &hands[player.opponent().index()];
+
         let player_committed = state.committed[player.index()] as f64;
+        let opp_committed = state.committed[player.opponent().index()] as f64;
+        let effective = player_committed.min(opp_committed);
 
         let hand = Hand::evaluate(hole, board_set.as_slice());
         let opp_hand = Hand::evaluate(opp_hole, board_set.as_slice());
 
         match hand.cmp(&opp_hand) {
-            std::cmp::Ordering::Greater => state.pot as f64 - player_committed,
-            std::cmp::Ordering::Less => -player_committed,
-            std::cmp::Ordering::Equal => (state.pot as f64 / 2.0) - player_committed,
+            std::cmp::Ordering::Greater => effective,
+            std::cmp::Ordering::Less => -effective,
+            std::cmp::Ordering::Equal => 0.0,
         }
     }
 }

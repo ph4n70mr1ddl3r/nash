@@ -38,6 +38,17 @@ impl Player {
         }
     }
 
+    /// Returns the player corresponding to the given array index (0 → SB, 1 → BB).
+    #[must_use]
+    #[inline]
+    pub const fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::SB),
+            1 => Some(Self::BB),
+            _ => None,
+        }
+    }
+
     /// Returns the opponent of this player.
     #[must_use]
     #[inline]
@@ -83,6 +94,18 @@ impl Street {
             Self::Flop => 3,
             Self::Turn => 4,
             Self::River => 5,
+        }
+    }
+
+    /// Returns the next street, or `None` if already on the river.
+    #[must_use]
+    #[inline]
+    pub const fn next(self) -> Option<Self> {
+        match self {
+            Self::Preflop => Some(Self::Flop),
+            Self::Flop => Some(Self::Turn),
+            Self::Turn => Some(Self::River),
+            Self::River => None,
         }
     }
 }
@@ -540,13 +563,8 @@ impl GameState {
 
             if both_all_in {
                 new_state.all_in_showdown = true;
-            } else {
-                new_state.street = match new_state.street {
-                    Street::Preflop => Street::Flop,
-                    Street::Flop => Street::Turn,
-                    Street::Turn => Street::River,
-                    Street::River => new_state.street,
-                };
+            } else if let Some(next_street) = new_state.street.next() {
+                new_state.street = next_street;
                 new_state.last_bet = 0;
                 new_state.min_raise = new_state.config.min_bet;
                 new_state.current_player = Player::SB;

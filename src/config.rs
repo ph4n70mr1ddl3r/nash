@@ -82,6 +82,9 @@ pub enum CFRConfigError {
     /// Save interval must be positive.
     #[error("save_interval must be positive")]
     InvalidSaveInterval,
+    /// Exploitability interval must not be negative when non-zero.
+    #[error("exploitability_interval must be 0 or positive")]
+    InvalidExploitabilityInterval,
 }
 
 /// Configuration for the CFR+ solver.
@@ -100,6 +103,9 @@ pub struct CFRConfig {
     /// Number of chance samples per iteration when using chance sampling.
     /// Set to 0 to auto-detect based on available CPU parallelism.
     pub samples_per_iteration: usize,
+    /// How often to compute exploitability via Monte Carlo best-response (in iterations).
+    /// Set to 0 to disable (recommended — exploitability is expensive).
+    pub exploitability_interval: usize,
 }
 
 impl CFRConfig {
@@ -132,6 +138,7 @@ impl Default for CFRConfig {
             save_path: None,
             use_chance_sampling: true,
             samples_per_iteration: 0,
+            exploitability_interval: 0,
         }
     }
 }

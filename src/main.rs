@@ -17,6 +17,7 @@ fn main() {
         save_path: Some("strategy.bin".to_string()),
         use_chance_sampling: true,
         samples_per_iteration: 0,
+        exploitability_interval: 50,
     };
 
     let mut solver = CFRSolver::new(game_config, cfr_config).unwrap_or_else(|e| {

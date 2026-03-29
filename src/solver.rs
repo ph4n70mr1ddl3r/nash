@@ -105,12 +105,21 @@ impl CFRSolver {
             if iter % self.cfr_config.log_interval == 0 {
                 let elapsed = start.elapsed();
                 let stats = self.strategy.stats();
-                let exploitability = self.compute_exploitability(50);
 
-                info!(
-                    "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
-                    iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
-                );
+                if self.cfr_config.exploitability_interval > 0
+                    && iter % self.cfr_config.exploitability_interval == 0
+                {
+                    let exploitability = self.compute_exploitability(50);
+                    info!(
+                        "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
+                        iter, stats.info_sets, stats.memory_mb, exploitability, elapsed
+                    );
+                } else {
+                    info!(
+                        "Iteration {}: {} info sets, {} MB, elapsed: {:?}",
+                        iter, stats.info_sets, stats.memory_mb, elapsed
+                    );
+                }
             }
 
             if let Some(ref path) = self.cfr_config.save_path {

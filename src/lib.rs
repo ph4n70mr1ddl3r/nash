@@ -303,6 +303,21 @@ mod tests {
     }
 
     #[test]
+    fn test_player_from_index() {
+        assert_eq!(Player::from_index(0), Some(Player::SB));
+        assert_eq!(Player::from_index(1), Some(Player::BB));
+        assert_eq!(Player::from_index(2), None);
+    }
+
+    #[test]
+    fn test_street_next() {
+        assert_eq!(Street::Preflop.next(), Some(Street::Flop));
+        assert_eq!(Street::Flop.next(), Some(Street::Turn));
+        assert_eq!(Street::Turn.next(), Some(Street::River));
+        assert_eq!(Street::River.next(), None);
+    }
+
+    #[test]
     fn test_street_board_card_count() {
         assert_eq!(Street::Preflop.board_card_count(), 0);
         assert_eq!(Street::Flop.board_card_count(), 3);
@@ -603,6 +618,7 @@ mod tests {
             save_path: None,
             use_chance_sampling: true,
             samples_per_iteration: 2,
+            exploitability_interval: 0,
         };
 
         let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();

@@ -183,9 +183,17 @@ impl ActionHistory {
         }
     }
 
-    /// Appends an action. Silently drops if at capacity.
+    /// Appends an action.
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug builds if at capacity.
     #[inline]
-    pub const fn push(&mut self, action: Action) {
+    pub fn push(&mut self, action: Action) {
+        debug_assert!(
+            (self.len as usize) < MAX_HISTORY_LEN,
+            "ActionHistory overflow"
+        );
         if (self.len as usize) < MAX_HISTORY_LEN {
             self.actions[self.len as usize] = action;
             self.len += 1;
@@ -419,17 +427,27 @@ impl GameState {
     }
 
     /// Returns `true` if the current betting round is complete.
+    ///
+    /// A round closes when both players have acted:
+    /// - A `Call` closes the round only after at least 2 actions (handles
+    ///   the preflop BB option: SB calling does *not* end the round).
+    /// - A `Check` closes the round when preceded by another `Check` or a
+    ///   `Call` (the preflop SB-call → BB-check sequence).
     #[must_use]
     #[inline]
     pub fn betting_round_closed(&self) -> bool {
         let round_actions = &self.history.as_slice()[self.round_start..];
-        let Some(last) = round_actions.last() else {
+        if round_actions.len() < 2 {
             return false;
-        };
+        }
+        let last = round_actions[round_actions.len() - 1];
         match last {
             Action::Call => true,
             Action::Check => {
-                round_actions.len() >= 2 && round_actions[round_actions.len() - 2] == Action::Check
+                matches!(
+                    round_actions[round_actions.len() - 2],
+                    Action::Check | Action::Call
+                )
             }
             _ => false,
         }
@@ -470,7 +488,7 @@ impl GameState {
 
             for &frac in BET_FRACTIONS {
                 let bet_size = (self.pot * frac / BET_DENOM).min(remaining);
-                if bet_size > 0 && len < MAX_ACTIONS - 1 {
+                if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
                     let action = Action::Bet(bet_size);
                     if !actions[..len].contains(&action) {
                         actions[len] = action;
@@ -498,8 +516,13 @@ impl GameState {
         }
 
         if remaining > 0 {
-            actions[len] = Action::AllIn;
-            len += 1;
+            let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
+                || (to_call < remaining
+                    && actions[..len].contains(&Action::Raise(remaining - to_call)));
+            if !all_in_dup {
+                actions[len] = Action::AllIn;
+                len += 1;
+            }
         }
 
         LegalActions {
@@ -550,9 +573,16 @@ impl GameState {
             Action::AllIn => {
                 let remaining = self.config.initial_stacks[self.current_player.index()]
                     .saturating_sub(self.committed[self.current_player.index()]);
+                let to_call = self
+                    .last_bet
+                    .saturating_sub(self.committed[self.current_player.index()]);
                 new_state.committed[self.current_player.index()] += remaining;
                 new_state.pot += remaining;
-                new_state.last_bet = new_state.committed[self.current_player.index()];
+                new_state.last_bet = new_state.committed[new_state.current_player.index()];
+                let raise_portion = remaining.saturating_sub(to_call);
+                if raise_portion > new_state.min_raise {
+                    new_state.min_raise = raise_portion;
+                }
             }
         }
 
@@ -617,7 +647,7 @@ impl InfoSet {
 
     /// Adds an action to the history.
     #[inline]
-    pub const fn add_action(&mut self, action: &Action) {
+    pub fn add_action(&mut self, action: &Action) {
         self.history.push(*action);
     }
 }

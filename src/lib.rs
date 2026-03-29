@@ -227,8 +227,12 @@ mod tests {
             min_bet: 2,
         };
         let state = GameState::new(config);
+        // Preflop: SB calls, BB checks (option)
         let state = state.apply_action(Action::Call);
+        assert!(!state.betting_round_closed());
+        let state = state.apply_action(Action::Check);
         assert_eq!(state.street, Street::Flop);
+        // Flop: SB checks, BB checks
         let state = state.apply_action(Action::Check);
         assert!(!state.betting_round_closed());
         let state = state.apply_action(Action::Check);

@@ -2,6 +2,7 @@
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::path::Path;
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -267,8 +268,8 @@ impl Strategy {
     ///
     /// Returns an error if file I/O or serialization fails.
     #[cold]
-    pub fn save(&self, path: &str) -> Result<(), StrategyError> {
-        let file = File::create(path)?;
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), StrategyError> {
+        let file = File::create(path.as_ref())?;
         let writer = BufWriter::new(file);
         let entries: Vec<_> = self
             .entries
@@ -285,8 +286,8 @@ impl Strategy {
     ///
     /// Returns an error if file I/O or deserialization fails.
     #[cold]
-    pub fn load(path: &str) -> Result<Self, StrategyError> {
-        let file = File::open(path)?;
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, StrategyError> {
+        let file = File::open(path.as_ref())?;
         let reader = BufReader::new(file);
         let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)?;
         let strategy = Self::with_capacity(entries.len());

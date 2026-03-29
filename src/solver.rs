@@ -363,7 +363,12 @@ impl CFRSolver {
             };
         }
 
-        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
+        let visible = if state.is_all_in_showdown() {
+            board.len().min(5)
+        } else {
+            state.visible_board_count(board.len())
+        };
+        let board_set = CardSet::from_cards(&board[..visible]);
         let hole = &hands[player.index()];
         let opp_hole = &hands[player.opponent().index()];
         let player_committed = state.committed[player.index()] as f64;

@@ -330,6 +330,8 @@ pub struct GameState {
     pub config: GameConfig,
     /// Index in `history` where the current betting round started.
     round_start: usize,
+    /// Both players are all-in — skip remaining streets to showdown.
+    all_in_showdown: bool,
 }
 
 impl GameState {
@@ -347,14 +349,15 @@ impl GameState {
             last_bet: config.big_blind,
             config,
             round_start: 0,
+            all_in_showdown: false,
         }
     }
 
-    /// Returns `true` if the hand has ended (fold or showdown).
+    /// Returns `true` if the hand has ended (fold, showdown, or both all-in).
     #[must_use]
     #[inline]
     pub fn is_terminal(&self) -> bool {
-        self.is_fold() || self.is_showdown()
+        self.is_fold() || self.is_showdown() || self.all_in_showdown
     }
 
     /// Returns the number of board cards visible on the current street.
@@ -376,6 +379,13 @@ impl GameState {
     #[inline]
     pub fn is_showdown(&self) -> bool {
         self.street == Street::River && self.betting_round_closed()
+    }
+
+    /// Returns `true` if both players are all-in with no further decisions.
+    #[must_use]
+    #[inline]
+    pub const fn is_all_in_showdown(&self) -> bool {
+        self.all_in_showdown
     }
 
     /// Returns `true` if the current betting round is complete.
@@ -510,16 +520,23 @@ impl GameState {
             && new_state.betting_round_closed()
             && new_state.street != Street::River
         {
-            new_state.street = match new_state.street {
-                Street::Preflop => Street::Flop,
-                Street::Flop => Street::Turn,
-                Street::Turn => Street::River,
-                Street::River => new_state.street,
-            };
-            new_state.last_bet = 0;
-            new_state.min_raise = new_state.config.min_bet;
-            new_state.current_player = Player::SB;
-            new_state.round_start = new_state.history.len();
+            let both_all_in = new_state.committed[0] >= new_state.config.initial_stacks[0]
+                && new_state.committed[1] >= new_state.config.initial_stacks[1];
+
+            if both_all_in {
+                new_state.all_in_showdown = true;
+            } else {
+                new_state.street = match new_state.street {
+                    Street::Preflop => Street::Flop,
+                    Street::Flop => Street::Turn,
+                    Street::Turn => Street::River,
+                    Street::River => new_state.street,
+                };
+                new_state.last_bet = 0;
+                new_state.min_raise = new_state.config.min_bet;
+                new_state.current_player = Player::SB;
+                new_state.round_start = new_state.history.len();
+            }
         } else {
             new_state.current_player = self.current_player.opponent();
         }

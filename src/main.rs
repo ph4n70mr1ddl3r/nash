@@ -644,4 +644,23 @@ mod tests {
         let cards = deck2.deal(5);
         assert_eq!(cards.len(), 5);
     }
+
+    #[test]
+    fn test_all_in_showdown_skips_streets() {
+        let config = GameConfig {
+            initial_stacks: [10, 10],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        assert!(!state.is_all_in_showdown());
+
+        let state = state.apply_action(Action::AllIn);
+        let state = state.apply_action(Action::Call);
+
+        assert!(state.is_terminal());
+        assert!(state.is_all_in_showdown());
+        assert!(!state.is_fold());
+    }
 }

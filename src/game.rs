@@ -12,8 +12,10 @@ use crate::strategy::MAX_ACTIONS;
 /// Number of players in heads-up poker.
 pub const NUM_PLAYERS: usize = 2;
 
-const POT_BET_FRACTION_NUM: u64 = 1;
-const POT_BET_FRACTION_DENOM: u64 = 2;
+const BET_FRACTIONS: &[u64] = &[1, 2, 3];
+const BET_DENOM: u64 = 3;
+const RAISE_FRACTIONS: &[u64] = &[1, 2];
+const RAISE_DENOM: u64 = 2;
 
 /// Player position in heads-up poker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -439,20 +441,32 @@ impl GameState {
             actions[len] = Action::Check;
             len += 1;
 
-            let bet_size =
-                (self.pot * POT_BET_FRACTION_NUM / POT_BET_FRACTION_DENOM).min(remaining);
-            if bet_size > 0 {
-                actions[len] = Action::Bet(bet_size);
-                len += 1;
+            for &frac in BET_FRACTIONS {
+                let bet_size = (self.pot * frac / BET_DENOM).min(remaining);
+                if bet_size > 0 && len < MAX_ACTIONS - 1 {
+                    let action = Action::Bet(bet_size);
+                    if !actions[..len].contains(&action) {
+                        actions[len] = action;
+                        len += 1;
+                    }
+                }
             }
         } else if to_call <= remaining {
             actions[len] = Action::Call;
             len += 1;
 
-            let raise_size = self.min_raise.max(to_call);
-            if raise_size <= remaining && remaining > to_call {
-                actions[len] = Action::Raise(raise_size.min(remaining - to_call));
-                len += 1;
+            for &frac in RAISE_FRACTIONS {
+                let raise_over_call = (self.pot * frac / RAISE_DENOM)
+                    .max(self.min_raise)
+                    .min(remaining - to_call);
+                if raise_over_call > 0 && raise_over_call >= self.min_raise && len < MAX_ACTIONS - 1
+                {
+                    let action = Action::Raise(raise_over_call);
+                    if !actions[..len].contains(&action) {
+                        actions[len] = action;
+                        len += 1;
+                    }
+                }
             }
         }
 

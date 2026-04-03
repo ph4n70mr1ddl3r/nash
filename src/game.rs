@@ -375,8 +375,7 @@ impl GameState {
     /// Creates a new game state with blinds posted.
     #[must_use]
     #[inline]
-    #[allow(clippy::missing_const_for_fn)]
-    pub fn new(config: GameConfig) -> Self {
+    pub const fn new(config: GameConfig) -> Self {
         let committed = [config.small_blind, config.big_blind];
         let all_in_showdown =
             committed[0] >= config.initial_stacks[0] && committed[1] >= config.initial_stacks[1];

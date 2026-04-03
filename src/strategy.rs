@@ -144,6 +144,7 @@ pub struct Strategy {
 impl Strategy {
     /// Creates a new empty strategy.
     #[must_use]
+    #[inline]
     pub fn new() -> Self {
         Self {
             entries: DashMap::new(),
@@ -152,6 +153,7 @@ impl Strategy {
 
     /// Creates a new strategy with pre-allocated capacity.
     #[must_use]
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             entries: DashMap::with_capacity(capacity),

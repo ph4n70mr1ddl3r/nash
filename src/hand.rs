@@ -16,7 +16,7 @@ const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 /// Uses fixed-size array to avoid heap allocation in hot path.
 type FlushResult = Option<([Card; 7], usize)>;
 
-/// A evaluated poker hand with a comparable rank value.
+/// An evaluated poker hand with a comparable rank value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Hand {
     rank: u32,

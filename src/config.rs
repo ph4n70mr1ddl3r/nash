@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Configuration for a heads-up No-Limit Hold'em game.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameConfig {
     /// Initial stack sizes for both players [SB, BB].
     pub initial_stacks: [u64; 2],
@@ -88,7 +88,7 @@ pub enum CFRConfigError {
 }
 
 /// Configuration for the CFR+ solver.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CFRConfig {
     /// Number of CFR iterations to run.
     pub num_iterations: usize,

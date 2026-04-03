@@ -439,10 +439,11 @@ impl GameState {
     #[must_use]
     #[inline]
     pub fn betting_round_closed(&self) -> bool {
-        let round_actions = &self.history.as_slice()[self.round_start..];
-        if round_actions.len() < 2 {
+        let history = self.history.as_slice();
+        if self.round_start >= history.len() || history.len() - self.round_start < 2 {
             return false;
         }
+        let round_actions = &history[self.round_start..];
         let last = round_actions[round_actions.len() - 1];
         match last {
             Action::Call => true,

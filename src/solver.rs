@@ -503,15 +503,15 @@ impl CFRSolver {
         let opp_hole = &hands[player.opponent().index()];
 
         let player_committed = state.committed[player.index()] as f64;
-        let opp_committed = state.committed[player.opponent().index()] as f64;
-        let effective = player_committed.min(opp_committed);
+        let total_pot = state.pot as f64;
 
         let hand = Hand::evaluate(hole, board_set.as_slice());
         let opp_hand = Hand::evaluate(opp_hole, board_set.as_slice());
 
+        let profit = total_pot - player_committed;
         match hand.cmp(&opp_hand) {
-            std::cmp::Ordering::Greater => effective,
-            std::cmp::Ordering::Less => -effective,
+            std::cmp::Ordering::Greater => profit,
+            std::cmp::Ordering::Less => -player_committed,
             std::cmp::Ordering::Equal => 0.0,
         }
     }

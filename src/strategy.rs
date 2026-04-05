@@ -147,6 +147,12 @@ impl StrategyEntry {
     #[inline]
     pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_o: f64, iter_weight: f64) {
         let len = self.num_actions as usize;
+        debug_assert!(
+            regrets.len() >= len && strategy.len() >= len,
+            "regrets/strategy slice length mismatch: expected >= {len}, got {}/{}",
+            regrets.len(),
+            strategy.len(),
+        );
         for (i, &regret) in regrets.iter().enumerate().take(len) {
             self.regrets[i] = (self.regrets[i] + regret).max(0.0);
         }

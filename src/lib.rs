@@ -1172,6 +1172,73 @@ mod tests {
     }
 
     #[test]
+    fn test_postflop_raise_reraise_multi_street() {
+        // Full multi-street sequence: preflop call, flop bet-raise-call,
+        // turn check-check, river check-check. Exercises min_raise,
+        // last_bet, round_start, and committed tracking across streets
+        // with a postflop raise-reraise — the most common real-game path.
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+
+        // Preflop: SB calls, BB checks -> Flop
+        let state = state.apply_action(Action::Call);
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::Flop);
+        assert_eq!(state.pot, 4);
+
+        // Flop: SB bets
+        let actions = state.legal_actions();
+        let bet = actions
+            .iter()
+            .find(|a| matches!(a, Action::Bet(_)))
+            .copied()
+            .unwrap();
+        let bet_amount = match bet {
+            Action::Bet(n) => n,
+            _ => unreachable!(),
+        };
+        let state = state.apply_action(bet);
+        assert_eq!(state.last_bet, 2 + bet_amount);
+
+        // BB raises the flop bet
+        let actions = state.legal_actions();
+        let raise = actions
+            .iter()
+            .find(|a| matches!(a, Action::Raise(_)))
+            .copied()
+            .unwrap();
+        let raise_amount = match raise {
+            Action::Raise(n) => n,
+            _ => unreachable!(),
+        };
+        let state = state.apply_action(raise);
+
+        // SB calls the raise -> Turn
+        let state = state.apply_action(Action::Call);
+        assert_eq!(state.street, Street::Turn);
+        let sb_expected = 2 + bet_amount + raise_amount;
+        let bb_expected = 2 + bet_amount + raise_amount;
+        assert_eq!(state.committed, [sb_expected, bb_expected]);
+
+        // Turn: both check -> River
+        let state = state.apply_action(Action::Check);
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::River);
+
+        // River: both check -> showdown
+        let state = state.apply_action(Action::Check);
+        let state = state.apply_action(Action::Check);
+        assert!(state.is_terminal());
+        assert!(state.is_showdown());
+        assert!(!state.is_fold());
+    }
+
+    #[test]
     fn test_postflop_fold() {
         // Verify fold on a postflop street correctly terminates the hand.
         let config = GameConfig {

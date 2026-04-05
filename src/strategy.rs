@@ -277,8 +277,9 @@ impl Strategy {
             .iter()
             .map(|e| (e.key().clone(), *e.value()))
             .collect();
-        let bytes = postcard::to_allocvec(&entries)?;
-        std::fs::write(path, &bytes)?;
+        let file = std::fs::File::create(path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        postcard::to_io(&entries, &mut writer)?;
         Ok(())
     }
 

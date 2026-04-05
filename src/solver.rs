@@ -381,7 +381,7 @@ impl CFRSolver {
             };
 
             action_values[i] = value;
-            node_value += strat[i] * value;
+            node_value = strat[i].mul_add(value, node_value);
         }
 
         if current == player {
@@ -492,7 +492,7 @@ impl CFRSolver {
                 let new_state = state.apply_action(action);
                 let value =
                     Self::best_response_traversal(strategy, &new_state, hands, board, br_player);
-                node_value += strat[i] * value;
+                node_value = strat[i].mul_add(value, node_value);
             }
             node_value
         }

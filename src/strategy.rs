@@ -130,7 +130,7 @@ impl StrategyEntry {
             self.regrets[i] = (self.regrets[i] + regret).max(0.0);
         }
         for (i, &strat) in strategy.iter().enumerate().take(len) {
-            self.strategy_sum[i] += pi_o * strat * iter_weight;
+            self.strategy_sum[i] = (pi_o * strat).mul_add(iter_weight, self.strategy_sum[i]);
         }
     }
 }

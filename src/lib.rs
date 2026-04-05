@@ -38,8 +38,8 @@ pub use strategy::{Strategy, StrategyEntry, StrategyError, StrategyStats};
 #[cfg(test)]
 mod tests {
     use crate::{
-        Action, CFRConfig, CFRSolver, Card, CardSet, Deck, GameConfig, GameState, Hand, HandType,
-        InfoSet, Player, Strategy, StrategyEntry, Street,
+        Action, ActionHistory, CFRConfig, CFRSolver, Card, CardSet, Deck, GameConfig, GameState,
+        Hand, HandType, InfoSet, Player, Strategy, StrategyEntry, Street,
     };
 
     fn card(rank: u8, suit: u8) -> Card {
@@ -1193,6 +1193,43 @@ mod tests {
         let hand_a = Hand::evaluate(&[card(2, 0), card(3, 1)], &board);
         let hand_b = Hand::evaluate(&[card(4, 2), card(5, 3)], &board);
         assert_eq!(hand_a, hand_b, "Both should play the board (two pair AA-KK-Q)");
+    }
+
+    #[test]
+    fn test_cardset_roundtrip() {
+        // Verify CardSet serializes and deserializes correctly.
+        let cards = vec![card(14, 0), card(13, 1), card(12, 2)];
+        let original = CardSet::from_cards(&cards);
+        let bytes = bincode::serialize(&original).unwrap();
+        let loaded: CardSet = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(original, loaded);
+        assert_eq!(loaded.len(), 3);
+    }
+
+    #[test]
+    fn test_action_history_roundtrip() {
+        // Verify ActionHistory serializes and deserializes correctly.
+        let mut history = ActionHistory::new();
+        history.push(Action::Call);
+        history.push(Action::Raise(10));
+        history.push(Action::Fold);
+        let bytes = bincode::serialize(&history).unwrap();
+        let loaded: ActionHistory = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(history, loaded);
+        assert_eq!(loaded.len(), 3);
+    }
+
+    #[test]
+    fn test_infoset_roundtrip() {
+        // Verify InfoSet (containing CardSet and ActionHistory) round-trips.
+        let hole = [card(14, 0), card(13, 1)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        let mut info = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+        info.add_action(&Action::Check);
+        info.add_action(&Action::Bet(4));
+        let bytes = bincode::serialize(&info).unwrap();
+        let loaded: InfoSet = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(info, loaded);
     }
 
     #[test]

@@ -285,12 +285,16 @@ impl CFRSolver {
         let hands = [hole_sb, hole_bb];
         let state = GameState::new(config);
 
+        // partial_shuffle places the randomly selected elements at the END
+        // of the slice (indices [len-amount..len]), not the beginning.
+        let board_start = remaining_len - 5;
+
         for &player in &[Player::SB, Player::BB] {
             Self::cfr_traversal_static(
                 strategy,
                 &state,
                 &hands,
-                &remaining[..5],
+                &remaining[board_start..remaining_len],
                 player,
                 1.0,
                 1.0,

@@ -713,7 +713,8 @@ mod tests {
         };
         let state = GameState::new(config);
         let state = state.apply_action(Action::AllIn);
-        let state = state.apply_action(Action::AllIn);
+        // BB's to_call (8) == remaining (8), so AllIn is deduped to Call.
+        let state = state.apply_action(Action::Call);
 
         assert!(state.is_terminal());
         assert!(state.is_all_in_showdown());
@@ -962,5 +963,59 @@ mod tests {
                 "All-in player should not see Bet/Raise/AllIn, got {action:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_one_player_all_in_skips_to_showdown() {
+        // SB goes all-in preflop, BB calls (but BB has more chips).
+        // After the preflop round closes, the game should skip straight
+        // to all-in showdown instead of playing check-check on each street.
+        let config = GameConfig {
+            initial_stacks: [10, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::AllIn); // SB all-in for 10
+        let state = state.apply_action(Action::Call); // BB calls (matching 10)
+
+        // SB committed 10 = stack, BB committed 10 < 100. Exactly one all-in.
+        assert!(
+            state.is_terminal(),
+            "Should be terminal (one player all-in, round closed)"
+        );
+        assert!(
+            state.is_all_in_showdown(),
+            "Should be all-in showdown, not fold or river showdown"
+        );
+        assert!(!state.is_fold());
+    }
+
+    #[test]
+    fn test_call_allin_dedup_when_call_matches_stack() {
+        // When to_call exactly equals remaining, Call and AllIn are identical.
+        // AllIn should be deduplicated so the CFR solver doesn't branch on
+        // two equivalent actions.
+        let config = GameConfig {
+            initial_stacks: [10, 10],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        // SB goes all-in for 10. BB has 10 total, committed 2, remaining 8.
+        // to_call = 10 - 2 = 8 = remaining. Call == AllIn.
+        let state = state.apply_action(Action::AllIn); // SB all-in
+
+        let actions = state.legal_actions();
+        assert!(
+            actions.contains(&Action::Call),
+            "Should offer Call when to_call == remaining"
+        );
+        assert!(
+            !actions.contains(&Action::AllIn),
+            "Should NOT offer AllIn when Call already commits everything"
+        );
     }
 }

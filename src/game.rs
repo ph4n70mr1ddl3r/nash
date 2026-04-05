@@ -532,10 +532,11 @@ impl GameState {
         }
 
         if remaining > 0 {
-            // Skip AllIn when opponent is all-in and Call suffices
-            // (to_call < remaining means AllIn would over-commit; to_call == 0 means
-            // nothing to match). When to_call == remaining, AllIn ≡ Call, so keep it.
-            let skip_all_in = opponent_all_in && to_call < remaining;
+            // Skip AllIn when it would be identical to an existing action:
+            // - opponent is all-in and Call suffices (to_call < remaining)
+            // - to_call == remaining (AllIn ≡ Call, avoid duplicate branch)
+            let skip_all_in = opponent_all_in && to_call < remaining
+                || to_call == remaining;
             if !skip_all_in {
                 let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
                     || (to_call < remaining
@@ -625,6 +626,19 @@ impl GameState {
                     new_state.min_raise = new_state.config.min_bet;
                     new_state.current_player = Player::SB;
                     new_state.round_start = new_state.history.len();
+                }
+
+                // When exactly one player is all-in, no further betting is
+                // possible (opponent_all_in prevents bets/raises). Skip
+                // remaining streets and go straight to showdown, avoiding
+                // 6 pointless check-check actions across Flop/Turn/River.
+                let sb_all_in = new_state.committed[0]
+                    >= new_state.config.initial_stacks[0];
+                let bb_all_in = new_state.committed[1]
+                    >= new_state.config.initial_stacks[1];
+                let one_all_in = sb_all_in != bb_all_in;
+                if one_all_in {
+                    new_state.all_in_showdown = true;
                 }
             } else {
                 new_state.current_player = self.current_player.opponent();

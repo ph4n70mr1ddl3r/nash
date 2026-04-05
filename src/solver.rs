@@ -483,7 +483,7 @@ impl CFRSolver {
             best_value
         } else {
             let mut strat = [0.0f64; MAX_ACTIONS];
-            let _found = strategy.get_average_strategy(
+            let _ = strategy.get_average_strategy(
                 &info_set,
                 actions.len(),
                 &mut strat[..actions.len()],

@@ -90,8 +90,6 @@ impl Hand {
             }
         }
 
-        let straight = Self::find_straight(cards);
-
         let ranks: [u8; 7] = {
             let mut arr = [0u8; 7];
             for (i, c) in cards.iter().enumerate() {
@@ -118,6 +116,7 @@ impl Hand {
             return Self::hand_rank(5, &kickers);
         }
 
+        let straight = Self::find_straight(cards);
         if let Some(high) = straight {
             return Self::hand_rank(4, &[high]);
         }

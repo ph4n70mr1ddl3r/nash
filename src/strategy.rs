@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::game::InfoSet;
 
 /// Maximum number of actions supported at any decision point.
-pub const MAX_ACTIONS: usize = 8;
+pub(crate) const MAX_ACTIONS: usize = 8;
 
 /// Maximum allowed file size for strategy loading (4 GB).
 const MAX_STRATEGY_FILE_SIZE: u64 = 4 * 1024 * 1024 * 1024;

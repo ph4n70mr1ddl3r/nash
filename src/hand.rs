@@ -253,7 +253,7 @@ impl Hand {
         let mut trips = None;
         let mut pair = None;
         for (rank, &count) in counts.iter().enumerate().rev() {
-            if count >= 3 && trips.is_none() {
+            if count == 3 && trips.is_none() {
                 trips = Some(rank as u8);
             } else if count >= 2 && pair.is_none() {
                 pair = Some(rank as u8);

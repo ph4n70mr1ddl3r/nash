@@ -1,7 +1,5 @@
 //! CFR strategy storage with concurrent `DashMap` access.
 
-use std::fs::File;
-use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 use dashmap::DashMap;
@@ -37,8 +35,8 @@ pub enum StrategyError {
     Serialization(String),
 }
 
-impl From<bincode::Error> for StrategyError {
-    fn from(e: bincode::Error) -> Self {
+impl From<postcard::Error> for StrategyError {
+    fn from(e: postcard::Error) -> Self {
         Self::Serialization(e.to_string())
     }
 }
@@ -265,7 +263,7 @@ impl Strategy {
 
     /// Saves the strategy to a binary file.
     ///
-    /// The strategy is serialized using bincode for efficient storage.
+    /// The strategy is serialized using postcard for efficient storage.
     /// Note: This collects all entries into memory before serialization,
     /// which may be memory-intensive for very large strategies.
     ///
@@ -274,14 +272,13 @@ impl Strategy {
     /// Returns an error if file I/O or serialization fails.
     #[cold]
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), StrategyError> {
-        let file = File::create(path.as_ref())?;
-        let writer = BufWriter::new(file);
         let entries: Vec<_> = self
             .entries
             .iter()
             .map(|e| (e.key().clone(), *e.value()))
             .collect();
-        bincode::serialize_into(writer, &entries)?;
+        let bytes = postcard::to_allocvec(&entries)?;
+        std::fs::write(path, &bytes)?;
         Ok(())
     }
 
@@ -294,16 +291,15 @@ impl Strategy {
     /// out-of-memory conditions from corrupted inputs.
     #[cold]
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, StrategyError> {
-        let file = File::open(path.as_ref())?;
-        let metadata = file.metadata()?;
+        let metadata = std::fs::metadata(path.as_ref())?;
         if metadata.len() > MAX_STRATEGY_FILE_SIZE {
             return Err(StrategyError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "strategy file exceeds 4 GB size limit",
             )));
         }
-        let reader = BufReader::new(file);
-        let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)?;
+        let bytes = std::fs::read(path)?;
+        let entries: Vec<(InfoSet, StrategyEntry)> = postcard::from_bytes(&bytes)?;
         let strategy = Self::with_capacity(entries.len());
         for (key, value) in entries {
             strategy.entries.insert(key, value);

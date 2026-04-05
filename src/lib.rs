@@ -1200,8 +1200,8 @@ mod tests {
         // Verify CardSet serializes and deserializes correctly.
         let cards = vec![card(14, 0), card(13, 1), card(12, 2)];
         let original = CardSet::from_cards(&cards);
-        let bytes = bincode::serialize(&original).unwrap();
-        let loaded: CardSet = bincode::deserialize(&bytes).unwrap();
+        let bytes = postcard::to_allocvec(&original).unwrap();
+        let loaded: CardSet = postcard::from_bytes(&bytes).unwrap();
         assert_eq!(original, loaded);
         assert_eq!(loaded.len(), 3);
     }
@@ -1213,8 +1213,8 @@ mod tests {
         history.push(Action::Call);
         history.push(Action::Raise(10));
         history.push(Action::Fold);
-        let bytes = bincode::serialize(&history).unwrap();
-        let loaded: ActionHistory = bincode::deserialize(&bytes).unwrap();
+        let bytes = postcard::to_allocvec(&history).unwrap();
+        let loaded: ActionHistory = postcard::from_bytes(&bytes).unwrap();
         assert_eq!(history, loaded);
         assert_eq!(loaded.len(), 3);
     }
@@ -1227,8 +1227,8 @@ mod tests {
         let mut info = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
         info.add_action(&Action::Check);
         info.add_action(&Action::Bet(4));
-        let bytes = bincode::serialize(&info).unwrap();
-        let loaded: InfoSet = bincode::deserialize(&bytes).unwrap();
+        let bytes = postcard::to_allocvec(&info).unwrap();
+        let loaded: InfoSet = postcard::from_bytes(&bytes).unwrap();
         assert_eq!(info, loaded);
     }
 

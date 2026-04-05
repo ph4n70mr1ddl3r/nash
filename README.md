@@ -6,7 +6,7 @@ A heads-up No-Limit Hold'em solver using the CFR+ algorithm with action abstract
 
 - **CFR+ Algorithm**: Counterfactual Regret Minimization with linear weighting
 - **Action Abstraction**: Configurable bet/raise sizes
-- **Strategy Serialization**: Save/load strategies using bincode format
+- **Strategy Serialization**: Save/load strategies using postcard binary format
 - **Parallel Processing**: Multi-threaded CFR iterations via rayon
 - **Progress Tracking**: Iteration counts, memory usage, and exploitability estimates
 

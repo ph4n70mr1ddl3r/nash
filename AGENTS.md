@@ -38,11 +38,11 @@ Nash is a heads-up No-Limit Hold'em poker solver using the CFR+ (Counterfactual 
 - Use `#[inline]` for performance-critical functions
 - Use `DashMap` for thread-safe strategy storage
 - Use `rayon` for parallel iteration in CFR
-- Serialize strategies with `bincode`
+- Serialize strategies with `postcard`
 
 ## Dependencies
 
-- `bincode`: Binary serialization
+- `postcard`: Binary serialization (no_std compatible)
 - `dashmap`: Concurrent hash map
 - `rand`: Random number generation
 - `rayon`: Parallel processing

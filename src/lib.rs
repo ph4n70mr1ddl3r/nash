@@ -760,9 +760,18 @@ mod tests {
 
         let invalid_save = CFRConfig {
             save_interval: 0,
+            save_path: Some("test.bin".to_string()),
             ..CFRConfig::default()
         };
         assert!(invalid_save.validate().is_err());
+
+        // save_interval: 0 is valid when save_path is None
+        let valid_no_save = CFRConfig {
+            save_interval: 0,
+            save_path: None,
+            ..CFRConfig::default()
+        };
+        assert!(valid_no_save.validate().is_ok());
     }
 
     // --- Unequal-stack utility tests ---

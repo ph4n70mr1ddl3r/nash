@@ -125,7 +125,7 @@ impl CFRConfig {
         if self.log_interval == 0 {
             return Err(CFRConfigError::InvalidLogInterval);
         }
-        if self.save_interval == 0 {
+        if self.save_path.is_some() && self.save_interval == 0 {
             return Err(CFRConfigError::InvalidSaveInterval);
         }
         if self.convergence_threshold < 0.0 {

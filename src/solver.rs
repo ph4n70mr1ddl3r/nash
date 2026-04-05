@@ -151,7 +151,9 @@ impl CFRSolver {
             }
 
             if let Some(ref path) = self.cfr_config.save_path {
-                if iter % self.cfr_config.save_interval == 0 {
+                if iter < self.cfr_config.num_iterations
+                    && iter % self.cfr_config.save_interval == 0
+                {
                     if let Err(e) = self.strategy.save(path) {
                         warn!("Failed to save strategy: {}", e);
                     } else {

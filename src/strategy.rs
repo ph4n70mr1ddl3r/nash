@@ -13,6 +13,9 @@ use crate::game::InfoSet;
 /// Maximum number of actions supported at any decision point.
 pub const MAX_ACTIONS: usize = 8;
 
+/// Maximum allowed file size for strategy loading (4 GB).
+const MAX_STRATEGY_FILE_SIZE: u64 = 4 * 1024 * 1024 * 1024;
+
 /// Statistics about the stored strategy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrategyStats {
@@ -286,10 +289,19 @@ impl Strategy {
     ///
     /// # Errors
     ///
-    /// Returns an error if file I/O or deserialization fails.
+    /// Returns an error if file I/O, deserialization, or a size sanity
+    /// check fails. Files larger than 4 GB are rejected to prevent
+    /// out-of-memory conditions from corrupted inputs.
     #[cold]
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, StrategyError> {
         let file = File::open(path.as_ref())?;
+        let metadata = file.metadata()?;
+        if metadata.len() > MAX_STRATEGY_FILE_SIZE {
+            return Err(StrategyError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "strategy file exceeds 4 GB size limit",
+            )));
+        }
         let reader = BufReader::new(file);
         let entries: Vec<(InfoSet, StrategyEntry)> = bincode::deserialize_from(reader)?;
         let strategy = Self::with_capacity(entries.len());

@@ -113,11 +113,29 @@ static ALL_CARDS: [Card; NUM_CARDS] = {
     cards
 };
 
+/// Helper struct for deserializing `CardSet` with validation.
+#[derive(Deserialize)]
+struct CardSetHelper {
+    cards: [Card; 5],
+    len: u8,
+}
+
 /// A fixed-size collection of up to 5 cards.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 pub struct CardSet {
     cards: [Card; 5],
     len: u8,
+}
+
+impl<'de> Deserialize<'de> for CardSet {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let helper = CardSetHelper::deserialize(deserializer)?;
+        let len = helper.len.min(5);
+        Ok(Self {
+            cards: helper.cards,
+            len,
+        })
+    }
 }
 
 impl CardSet {

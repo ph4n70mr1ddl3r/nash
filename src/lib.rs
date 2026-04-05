@@ -787,6 +787,25 @@ mod tests {
     }
 
     #[test]
+    fn test_bb_only_blind_all_in_not_terminal() {
+        // BB's stack equals the big blind: BB is all-in, but SB still has
+        // chips and should get to act (fold/call against the all-in BB).
+        let config = GameConfig {
+            initial_stacks: [100, 2],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        assert_eq!(state.committed, [1, 2]);
+        assert!(!state.is_terminal(), "BB-only all-in should not be terminal");
+        assert!(!state.is_all_in_showdown());
+        let actions = state.legal_actions();
+        assert!(actions.contains(&Action::Fold));
+        assert!(actions.contains(&Action::Call));
+    }
+
+    #[test]
     fn test_cfr_config_validate_log_and_save_intervals() {
         let invalid_log = CFRConfig {
             log_interval: 0,

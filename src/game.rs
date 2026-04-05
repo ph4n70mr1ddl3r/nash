@@ -429,16 +429,14 @@ impl GameState {
         };
         let committed = [sb_committed, bb_committed];
         let pot = committed[0] + committed[1];
-        // Trigger all-in showdown if EITHER player has committed their
-        // entire stack from blinds.  When one player has 0 remaining,
-        // no further betting decisions are possible — the hand should
-        // resolve at showdown immediately.  Previously only the
-        // both-all-in case was handled, leaving the state machine in
-        // an inconsistent position where legal_actions() was empty but
-        // is_terminal() returned false.
         let sb_all_in = committed[0] >= config.initial_stacks[0];
-        let bb_all_in = committed[1] >= config.initial_stacks[1];
-        let all_in_showdown = sb_all_in || bb_all_in;
+        // Trigger all-in showdown when SB has committed their entire stack
+        // from the blind.  SB is current_player with 0 remaining — they
+        // cannot act, so the hand must resolve at showdown immediately.
+        // This also covers the both-all-in case since sb_all_in implies
+        // at least SB can't act.  BB-only all-in is NOT terminal here —
+        // SB still gets to choose (fold/call/raise against the all-in BB).
+        let all_in_showdown = sb_all_in;
         Self {
             street: Street::Preflop,
             current_player: Player::SB,

@@ -74,6 +74,34 @@ impl Hand {
     #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         if cards.len() < 5 {
+            // Flushes and straights require 5 cards, but pairs/trips/quads
+            // are still possible with fewer. Rank-count to detect them.
+            let mut ranks = [0u8; 7];
+            for (i, c) in cards.iter().enumerate() {
+                ranks[i] = c.rank();
+            }
+            let counts = Self::count_ranks(&ranks[..cards.len()]);
+
+            if let Some(rank) = Self::find_four_of_a_kind(&counts) {
+                let kicker = Self::best_kicker(&counts, &[rank]);
+                return Self::hand_rank(7, &[rank, kicker]);
+            }
+            if let Some((trips, pair)) = Self::find_full_house(&counts) {
+                return Self::hand_rank(6, &[trips, pair]);
+            }
+            if let Some(rank) = Self::find_three_of_a_kind(&counts) {
+                let kickers = Self::best_kickers_fixed::<2>(&counts, &[rank]);
+                return Self::hand_rank(3, &[rank, kickers[0], kickers[1]]);
+            }
+            if let Some((high, low)) = Self::find_two_pair(&counts) {
+                let kicker = Self::best_kicker(&counts, &[high, low]);
+                return Self::hand_rank(2, &[high, low, kicker]);
+            }
+            if let Some(rank) = Self::find_pair(&counts) {
+                let kickers = Self::best_kickers_fixed::<3>(&counts, &[rank]);
+                return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
+            }
+
             let mut kickers = [0u8; 5];
             for (i, c) in cards.iter().enumerate() {
                 kickers[i] = c.rank();

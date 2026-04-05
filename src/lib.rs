@@ -1271,6 +1271,26 @@ mod tests {
     }
 
     #[test]
+    fn test_hand_sub_five_card_detection() {
+        // With fewer than 5 total cards, pairs/trips/quads must still be detected.
+        // Pocket pair (2 cards total): pair of Aces.
+        let hand = Hand::evaluate(&[card(14, 0), card(14, 1)], &[]);
+        assert_eq!(hand.hand_type(), HandType::Pair, "pocket pair should be detected");
+
+        // Hole + 1 board card (3 total): trip Aces.
+        let hand = Hand::evaluate(&[card(14, 0), card(14, 1)], &[card(14, 2)]);
+        assert_eq!(hand.hand_type(), HandType::ThreeOfAKind, "trips from 3 cards");
+
+        // Hole + 2 board cards (4 total): two pair (AA + KK).
+        let hand = Hand::evaluate(&[card(14, 0), card(13, 1)], &[card(14, 2), card(13, 3)]);
+        assert_eq!(hand.hand_type(), HandType::TwoPair, "two pair from 4 cards");
+
+        // High card with 2 cards (no pair).
+        let hand = Hand::evaluate(&[card(14, 0), card(12, 1)], &[]);
+        assert_eq!(hand.hand_type(), HandType::HighCard, "AK offsuit should be high card");
+    }
+
+    #[test]
     fn test_hand_kicker_comparison() {
         // Two hands with same type (pair of Aces) but different kickers.
         let board = [card(14, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];

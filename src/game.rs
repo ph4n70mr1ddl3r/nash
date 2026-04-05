@@ -371,6 +371,8 @@ impl ExactSizeIterator for LegalActionsIter {
     }
 }
 
+impl std::iter::FusedIterator for LegalActionsIter {}
+
 impl IntoIterator for LegalActions {
     type Item = Action;
     type IntoIter = LegalActionsIter;

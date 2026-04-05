@@ -1,3 +1,5 @@
+//! Nash solver binary — runs CFR+ on a default heads-up NLHE configuration.
+
 use nash::{CFRConfig, CFRSolver, GameConfig};
 
 fn main() {

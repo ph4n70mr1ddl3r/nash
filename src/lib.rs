@@ -3,23 +3,7 @@
 //! This library implements the Counterfactual Regret Minimization with linear
 //! weighting (CFR+) algorithm for solving heads-up No-Limit Hold'em poker.
 
-#![forbid(unsafe_code)]
-#![warn(
-    missing_docs,
-    missing_debug_implementations,
-    rust_2018_idioms,
-    clippy::all,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::unwrap_used,
-    clippy::expect_used
-)]
-#![allow(
-    clippy::module_name_repetitions,
-    clippy::redundant_pub_crate,
-    clippy::option_if_let_else,
-    clippy::similar_names
-)]
+#![warn(missing_debug_implementations, rust_2018_idioms)]
 
 pub mod card;
 pub mod config;

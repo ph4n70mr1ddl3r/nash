@@ -161,6 +161,16 @@ impl CFRSolver {
             }
         }
 
+        // Always save the final strategy, even if save_interval didn't land
+        // on the last iteration. The final strategy is the best one.
+        if let Some(ref path) = self.cfr_config.save_path {
+            if let Err(e) = self.strategy.save(path) {
+                warn!("Failed to save final strategy: {}", e);
+            } else {
+                info!("Saved final strategy to {}", path);
+            }
+        }
+
         let total = start.elapsed();
         info!("CFR+ completed in {:?}", total);
     }

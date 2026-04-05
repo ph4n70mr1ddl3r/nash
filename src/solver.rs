@@ -223,17 +223,30 @@ impl CFRSolver {
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {
-                        Self::process_card_combination(
-                            &strategy,
-                            config,
-                            &mut rng,
-                            all_cards,
-                            i,
-                            j,
-                            k,
-                            l,
-                            iter_weight,
-                        );
+                        // All 6 ordered splits of {i,j,k,l} into SB/BB hole cards.
+                        // Each 4-card set has C(4,2) = 6 ways to assign two cards
+                        // to SB (rest to BB). Previously only one split was used,
+                        // missing 5/6 of all deals and biasing regret updates.
+                        for (a, b, c, d) in [
+                            (i, j, k, l),
+                            (i, k, j, l),
+                            (i, l, j, k),
+                            (j, k, i, l),
+                            (j, l, i, k),
+                            (k, l, i, j),
+                        ] {
+                            Self::process_card_combination(
+                                &strategy,
+                                config,
+                                &mut rng,
+                                all_cards,
+                                a,
+                                b,
+                                c,
+                                d,
+                                iter_weight,
+                            );
+                        }
                     }
                 }
             }

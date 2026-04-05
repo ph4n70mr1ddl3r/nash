@@ -769,6 +769,24 @@ mod tests {
     }
 
     #[test]
+    fn test_single_player_blind_all_in_is_terminal() {
+        // SB has fewer chips than the small blind: entire stack is posted,
+        // no further decisions possible.  The game should be immediately
+        // terminal (all-in showdown), not stuck with empty legal_actions.
+        let config = GameConfig {
+            initial_stacks: [1, 100],
+            small_blind: 5,
+            big_blind: 10,
+            min_bet: 10,
+        };
+        let state = GameState::new(config);
+        assert_eq!(state.committed, [1, 10]);
+        assert!(state.is_terminal(), "should be terminal when SB is all-in from blind");
+        assert!(state.is_all_in_showdown());
+        assert!(!state.is_fold());
+    }
+
+    #[test]
     fn test_cfr_config_validate_log_and_save_intervals() {
         let invalid_log = CFRConfig {
             log_interval: 0,

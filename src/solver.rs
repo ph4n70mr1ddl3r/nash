@@ -96,6 +96,8 @@ impl CFRSolver {
             self.cfr_config.num_iterations
         );
 
+        let mut converged_early = false;
+
         for iter in 1..=self.cfr_config.num_iterations {
             self.iteration = iter;
 
@@ -129,6 +131,7 @@ impl CFRSolver {
                             info!("Saved strategy to {}", path);
                         }
                     }
+                    converged_early = true;
                     break;
                 }
             }
@@ -165,11 +168,14 @@ impl CFRSolver {
 
         // Always save the final strategy, even if save_interval didn't land
         // on the last iteration. The final strategy is the best one.
-        if let Some(ref path) = self.cfr_config.save_path {
-            if let Err(e) = self.strategy.save(path) {
-                warn!("Failed to save final strategy: {}", e);
-            } else {
-                info!("Saved final strategy to {}", path);
+        // Skip if convergence already saved it.
+        if !converged_early {
+            if let Some(ref path) = self.cfr_config.save_path {
+                if let Err(e) = self.strategy.save(path) {
+                    warn!("Failed to save final strategy: {}", e);
+                } else {
+                    info!("Saved final strategy to {}", path);
+                }
             }
         }
 
@@ -346,8 +352,14 @@ impl CFRSolver {
 
         let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let hole = &hands[current.index()];
+        // Normalize hole card order so [Ac, Kd] and [Kd, Ac] map to the
+        // same InfoSet.  Without this, the sampled iteration path fragments
+        // regret updates across two entries for the same strategic situation,
+        // wasting memory and slowing convergence.
+        let mut sorted_hole = *hole;
+        sorted_hole.sort_unstable();
 
-        let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
+        let mut info_set = InfoSet::from_cards(current, state.street, &sorted_hole, board_set);
         for action in &state.history {
             info_set.add_action(action);
         }
@@ -467,7 +479,10 @@ impl CFRSolver {
 
         let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let hole = &hands[current.index()];
-        let mut info_set = InfoSet::from_cards(current, state.street, hole, board_set);
+        let mut sorted_hole = *hole;
+        sorted_hole.sort_unstable();
+
+        let mut info_set = InfoSet::from_cards(current, state.street, &sorted_hole, board_set);
         for action in &state.history {
             info_set.add_action(action);
         }

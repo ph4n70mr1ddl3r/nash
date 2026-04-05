@@ -334,14 +334,54 @@ impl<'a> IntoIterator for &'a LegalActions {
     }
 }
 
-impl IntoIterator for LegalActions {
+/// Stack-allocated owned iterator over `LegalActions`.
+/// Avoids heap allocation compared to `Vec::into_iter`.
+#[derive(Debug, Clone)]
+pub struct LegalActionsIter {
+    actions: [Action; MAX_ACTIONS],
+    len: u8,
+    pos: u8,
+}
+
+impl Iterator for LegalActionsIter {
     type Item = Action;
-    type IntoIter = std::vec::IntoIter<Action>;
 
     #[inline]
-    #[allow(clippy::unnecessary_to_owned)]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.len {
+            let action = self.actions[self.pos as usize];
+            self.pos += 1;
+            Some(action)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.len - self.pos) as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for LegalActionsIter {
+    #[inline]
+    fn len(&self) -> usize {
+        (self.len - self.pos) as usize
+    }
+}
+
+impl IntoIterator for LegalActions {
+    type Item = Action;
+    type IntoIter = LegalActionsIter;
+
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.actions[..self.len as usize].to_vec().into_iter()
+        LegalActionsIter {
+            actions: self.actions,
+            len: self.len,
+            pos: 0,
+        }
     }
 }
 

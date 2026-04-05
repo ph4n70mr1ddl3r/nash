@@ -733,6 +733,30 @@ pub struct InfoSet {
 }
 
 impl InfoSet {
+    /// Creates a new info set from cards and an existing action history.
+    ///
+    /// This avoids the `O(history_len)` cost of pushing actions one-by-one,
+    /// which matters in the hot CFR traversal path where every node visit
+    /// previously reconstructed the history from scratch.
+    #[must_use]
+    #[inline]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn from_cards_with_history(
+        player: Player,
+        street: Street,
+        hole: &[Card; 2],
+        board: CardSet,
+        history: ActionHistory,
+    ) -> Self {
+        Self {
+            player,
+            street,
+            hole: *hole,
+            board,
+            history,
+        }
+    }
+
     /// Creates a new info set from cards.
     #[must_use]
     #[inline]

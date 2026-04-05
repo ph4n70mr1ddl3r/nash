@@ -365,10 +365,13 @@ impl CFRSolver {
         let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let sorted_hole = &sorted_holes[current.index()];
 
-        let mut info_set = InfoSet::from_cards(current, state.street, sorted_hole, board_set);
-        for action in &state.history {
-            info_set.add_action(action);
-        }
+        let info_set = InfoSet::from_cards_with_history(
+            current,
+            state.street,
+            sorted_hole,
+            board_set,
+            state.history.clone(),
+        );
 
         let mut strat = [0.0f64; MAX_ACTIONS];
         strategy.get_strategy(&info_set, actions.len(), &mut strat[..actions.len()]);
@@ -493,10 +496,13 @@ impl CFRSolver {
         let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
         let sorted_hole = &sorted_holes[current.index()];
 
-        let mut info_set = InfoSet::from_cards(current, state.street, sorted_hole, board_set);
-        for action in &state.history {
-            info_set.add_action(action);
-        }
+        let info_set = InfoSet::from_cards_with_history(
+            current,
+            state.street,
+            sorted_hole,
+            board_set,
+            state.history.clone(),
+        );
 
         if current == br_player {
             let mut best_value = f64::NEG_INFINITY;

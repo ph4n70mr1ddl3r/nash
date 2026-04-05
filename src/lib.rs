@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_legal_actions_iter() {
+    fn test_legal_actions_preflop_sb_actions() {
         let config = GameConfig {
             initial_stacks: [1000, 1000],
             small_blind: 1,
@@ -559,8 +559,15 @@ mod tests {
         };
         let state = GameState::new(config);
         let actions = state.legal_actions();
-        let count = actions.iter().count();
-        assert!(count >= 3);
+        assert!(actions.contains(&Action::Fold));
+        assert!(actions.contains(&Action::Call));
+        // Preflop SB facing BB's 2: raises are pot-fraction based
+        // pot=3, raise_over_call = max(pot*frac/2, min_bet).min(remaining-to_call)
+        assert!(
+            actions.iter().any(|a| matches!(a, Action::Raise(_))),
+            "SB should have at least one raise option preflop"
+        );
+        assert!(actions.contains(&Action::AllIn));
     }
 
     #[test]
@@ -1042,5 +1049,138 @@ mod tests {
             !actions.contains(&Action::AllIn),
             "Should NOT offer AllIn when Call already commits everything"
         );
+    }
+
+    #[test]
+    fn test_bet_action_state_transitions() {
+        // Verify Bet action correctly updates committed, pot, last_bet, min_raise.
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        // Preflop: SB calls, BB checks -> Flop
+        let state = state.apply_action(Action::Call);
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::Flop);
+
+        // SB bets on the flop (pot = 4, bet fractions give Bet(1), Bet(2), Bet(4))
+        let actions = state.legal_actions();
+        assert!(actions.contains(&Action::Check));
+        let bet_action = actions
+            .iter()
+            .find(|a| matches!(a, Action::Bet(_)))
+            .copied();
+        let bet_amount = match bet_action {
+            Some(Action::Bet(n)) => n,
+            _ => panic!("SB should have a Bet option on the flop"),
+        };
+
+        let state = state.apply_action(bet_action.unwrap());
+        assert_eq!(
+            state.committed[0],
+            2 + bet_amount,
+            "SB committed should increase by bet amount"
+        );
+        assert_eq!(state.last_bet, 2 + bet_amount);
+        assert_eq!(state.min_raise, bet_amount);
+
+        // BB calls the bet -> Turn
+        let state = state.apply_action(Action::Call);
+        assert_eq!(state.street, Street::Turn);
+        assert_eq!(state.committed, [2 + bet_amount, 2 + bet_amount]);
+    }
+
+    #[test]
+    fn test_raise_reraise_sequence() {
+        // Verify min_raise updates correctly through a raise-reraise sequence.
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+
+        // SB raises: to_call=1, raise_over_call=2, total=3. committed=[4,2].
+        let state = state.apply_action(Action::Raise(2));
+        assert_eq!(state.committed[0], 4); // sb(1) + call(1) + raise(2)
+        assert_eq!(state.last_bet, 4);
+        assert_eq!(state.min_raise, 2);
+
+        // BB re-raises: to_call=2, pot=6. raise_over_call = max(6*1/2, 2)=3.
+        let state = state.apply_action(Action::Raise(3));
+        assert_eq!(state.committed[1], 2 + 2 + 3); // bb(2) + call(2) + raise(3) = 7
+        assert_eq!(state.last_bet, 7);
+        assert_eq!(state.min_raise, 3);
+
+        // SB calls -> Flop
+        let state = state.apply_action(Action::Call);
+        assert_eq!(state.street, Street::Flop);
+        assert_eq!(state.committed[0], 4 + 3); // match BB's 7
+        assert_eq!(state.committed[1], 7);
+    }
+
+    #[test]
+    fn test_postflop_fold() {
+        // Verify fold on a postflop street correctly terminates the hand.
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::Call);
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::Flop);
+
+        // SB bets, BB folds
+        let actions = state.legal_actions();
+        let bet = actions
+            .iter()
+            .find(|a| matches!(a, Action::Bet(_)))
+            .copied()
+            .unwrap();
+        let state = state.apply_action(bet);
+        let state = state.apply_action(Action::Fold);
+
+        assert!(state.is_terminal());
+        assert!(state.is_fold());
+        assert_eq!(state.winner(), Some(Player::SB));
+    }
+
+    #[test]
+    fn test_hand_with_three_board_cards() {
+        // Verify hand evaluation works with fewer than 5 board cards.
+        let hole = [card(14, 0), card(13, 1)];
+        let board = [card(14, 2), card(10, 3), card(5, 0)];
+        let hand = Hand::evaluate(&hole, &board);
+        assert_eq!(hand.hand_type(), HandType::Pair, "pair of Aces from hole+board");
+    }
+
+    #[test]
+    fn test_hand_kicker_comparison() {
+        // Two hands with same type (pair of Aces) but different kickers.
+        let board = [card(14, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];
+        let strong_kicker = Hand::evaluate(&[card(14, 1), card(13, 2)], &board);
+        let weak_kicker = Hand::evaluate(&[card(14, 2), card(9, 3)], &board);
+        assert_eq!(strong_kicker.hand_type(), HandType::Pair);
+        assert_eq!(weak_kicker.hand_type(), HandType::Pair);
+        assert!(
+            strong_kicker > weak_kicker,
+            "Pair of Aces with K kicker should beat pair of Aces with 9 kicker"
+        );
+    }
+
+    #[test]
+    fn test_hand_play_the_board_tie() {
+        // Both hole cards are irrelevant; best hand is entirely on the board.
+        let board = [card(14, 0), card(14, 1), card(13, 2), card(13, 3), card(12, 0)];
+        let hand_a = Hand::evaluate(&[card(2, 0), card(3, 1)], &board);
+        let hand_b = Hand::evaluate(&[card(4, 2), card(5, 3)], &board);
+        assert_eq!(hand_a, hand_b, "Both should play the board (two pair AA-KK-Q)");
     }
 }

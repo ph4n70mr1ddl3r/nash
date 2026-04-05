@@ -212,7 +212,7 @@ impl Hand {
             rank_mask |= 1 << card.rank();
         }
 
-        for high in (5..=14).rev() {
+        for high in (6..=14).rev() {
             let straight_mask = ((1u32 << 5) - 1) << (high - 4);
             if rank_mask & straight_mask == straight_mask {
                 return Some(high);

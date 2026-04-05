@@ -529,6 +529,17 @@ mod tests {
             min_bet: 2,
         };
         assert!(invalid_blind_ratio.validate().is_err());
+
+        let overflow_stacks = GameConfig {
+            initial_stacks: [u64::MAX, u64::MAX],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        assert!(
+            overflow_stacks.validate().is_err(),
+            "Stacks whose sum overflows u64 should be rejected"
+        );
     }
 
     #[test]

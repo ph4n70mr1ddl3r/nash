@@ -45,6 +45,11 @@ impl GameConfig {
         if self.initial_stacks[0] == 0 || self.initial_stacks[1] == 0 {
             return Err(ConfigError::InvalidStacks);
         }
+        // Prevent pot/committed overflow in game state arithmetic.
+        // The pot is the sum of both commitments, which must not wrap.
+        if self.initial_stacks[0].checked_add(self.initial_stacks[1]).is_none() {
+            return Err(ConfigError::InvalidStacks);
+        }
         if self.small_blind == 0 || self.big_blind == 0 {
             return Err(ConfigError::InvalidBlinds);
         }

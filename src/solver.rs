@@ -213,6 +213,10 @@ impl CFRSolver {
             let board = deck.deal_into::<5>();
             let hands = [hole_sb, hole_bb];
 
+            let mut sorted_hands = hands;
+            sorted_hands[0].sort_unstable();
+            sorted_hands[1].sort_unstable();
+
             let state = GameState::new(config);
 
             for &player in &[Player::SB, Player::BB] {
@@ -225,6 +229,7 @@ impl CFRSolver {
                     1.0,
                     1.0,
                     iter_weight,
+                    &sorted_hands,
                 );
             }
         });
@@ -303,6 +308,10 @@ impl CFRSolver {
         remaining[..remaining_len].partial_shuffle(rng, 5);
 
         let hands = [hole_sb, hole_bb];
+        let mut sorted_hands = hands;
+        sorted_hands[0].sort_unstable();
+        sorted_hands[1].sort_unstable();
+
         let state = GameState::new(config);
 
         // partial_shuffle places the randomly selected elements at the END
@@ -319,6 +328,7 @@ impl CFRSolver {
                 1.0,
                 1.0,
                 iter_weight,
+                &sorted_hands,
             );
         }
     }
@@ -334,6 +344,7 @@ impl CFRSolver {
         pi_o: f64,
         pi_neg_o: f64,
         iter_weight: f64,
+        sorted_holes: &[[Card; 2]],
     ) -> f64 {
         if state.is_terminal() {
             return Self::get_utility_impl(state, hands, board, player);
@@ -343,23 +354,18 @@ impl CFRSolver {
             return 0.0;
         }
 
-        let current = state.current_player;
         let actions = state.legal_actions();
 
         if actions.is_empty() {
             return Self::get_utility_impl(state, hands, board, player);
         }
 
-        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
-        let hole = &hands[current.index()];
-        // Normalize hole card order so [Ac, Kd] and [Kd, Ac] map to the
-        // same InfoSet.  Without this, the sampled iteration path fragments
-        // regret updates across two entries for the same strategic situation,
-        // wasting memory and slowing convergence.
-        let mut sorted_hole = *hole;
-        sorted_hole.sort_unstable();
+        let current = state.current_player;
 
-        let mut info_set = InfoSet::from_cards(current, state.street, &sorted_hole, board_set);
+        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
+        let sorted_hole = &sorted_holes[current.index()];
+
+        let mut info_set = InfoSet::from_cards(current, state.street, sorted_hole, board_set);
         for action in &state.history {
             info_set.add_action(action);
         }
@@ -382,6 +388,7 @@ impl CFRSolver {
                     pi_o * strat[i],
                     pi_neg_o,
                     iter_weight,
+                    sorted_holes,
                 )
             } else {
                 Self::cfr_traversal_static(
@@ -393,6 +400,7 @@ impl CFRSolver {
                     pi_o,
                     pi_neg_o * strat[i],
                     iter_weight,
+                    sorted_holes,
                 )
             };
 
@@ -447,10 +455,13 @@ impl CFRSolver {
                 let board = deck.deal_into::<5>();
 
                 let mut br_sum = 0.0f64;
+                let mut sorted_hands = hands;
+                sorted_hands[0].sort_unstable();
+                sorted_hands[1].sort_unstable();
                 for &player in &[Player::SB, Player::BB] {
                     let state = GameState::new(config);
                     br_sum +=
-                        Self::best_response_traversal(&strategy, &state, &hands, &board, player);
+                        Self::best_response_traversal(&strategy, &state, &hands, &board, player, &sorted_hands);
                 }
                 br_sum
             })
@@ -466,23 +477,23 @@ impl CFRSolver {
         hands: &[[Card; 2]],
         board: &[Card],
         br_player: Player,
+        sorted_holes: &[[Card; 2]],
     ) -> f64 {
         if state.is_terminal() {
             return Self::get_utility_impl(state, hands, board, br_player);
         }
 
-        let current = state.current_player;
         let actions = state.legal_actions();
         if actions.is_empty() {
             return Self::get_utility_impl(state, hands, board, br_player);
         }
 
-        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
-        let hole = &hands[current.index()];
-        let mut sorted_hole = *hole;
-        sorted_hole.sort_unstable();
+        let current = state.current_player;
 
-        let mut info_set = InfoSet::from_cards(current, state.street, &sorted_hole, board_set);
+        let board_set = CardSet::from_cards(&board[..state.visible_board_count(board.len())]);
+        let sorted_hole = &sorted_holes[current.index()];
+
+        let mut info_set = InfoSet::from_cards(current, state.street, sorted_hole, board_set);
         for action in &state.history {
             info_set.add_action(action);
         }
@@ -492,7 +503,7 @@ impl CFRSolver {
             for &action in &actions {
                 let new_state = state.apply_action(action);
                 let value =
-                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player);
+                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player, sorted_holes);
                 if value > best_value {
                     best_value = value;
                 }
@@ -510,7 +521,7 @@ impl CFRSolver {
             for (i, &action) in actions.iter().enumerate() {
                 let new_state = state.apply_action(action);
                 let value =
-                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player);
+                    Self::best_response_traversal(strategy, &new_state, hands, board, br_player, sorted_holes);
                 node_value = strat[i].mul_add(value, node_value);
             }
             node_value

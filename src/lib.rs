@@ -36,6 +36,7 @@ pub use solver::{CFRSolver, SolverError};
 pub use strategy::{Strategy, StrategyEntry, StrategyError, StrategyStats};
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::items_after_statements)]
 mod tests {
     use crate::{
         Action, ActionHistory, CFRConfig, CFRSolver, Card, CardSet, Deck, GameConfig, GameState,
@@ -332,8 +333,8 @@ mod tests {
 
     #[test]
     fn test_deck_deal() {
-        let mut deck = Deck::new();
         use rand::prelude::*;
+        let mut deck = Deck::new();
         let mut rng = thread_rng();
         deck.shuffle(&mut rng);
         let cards = deck.deal(5);
@@ -651,7 +652,7 @@ mod tests {
             convergence_threshold: 0.0,
         };
 
-        let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();
+        let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
         solver.solve();
         assert!(!solver.strategy.is_empty());
     }
@@ -690,12 +691,12 @@ mod tests {
 
     #[test]
     fn test_deck_fixed_size() {
+        use rand::prelude::*;
         let mut deck = Deck::new();
         assert_eq!(deck.deal(52).len(), 52);
         assert!(deck.deal(1).is_empty());
 
         let mut deck2 = Deck::new();
-        use rand::prelude::*;
         let mut rng = thread_rng();
         deck2.shuffle(&mut rng);
         let cards = deck2.deal(5);
@@ -941,7 +942,7 @@ mod tests {
         // No Check (facing a bet)
         assert!(!actions.contains(&Action::Check));
         // No Bet (opponent all-in)
-        for action in actions.iter() {
+        for action in &actions {
             assert!(
                 !matches!(action, Action::Bet(_)),
                 "Should not offer Bet against all-in opponent"
@@ -977,7 +978,7 @@ mod tests {
         assert!(actions.contains(&Action::Fold));
         assert!(actions.contains(&Action::Call));
         // No bets or raises
-        for action in actions.iter() {
+        for action in &actions {
             assert!(
                 !matches!(action, Action::Bet(_)),
                 "Should not offer Bet against all-in opponent postflop"
@@ -1037,7 +1038,7 @@ mod tests {
             "All-in player should be offered Check"
         );
         // No bets/raises/all-in (remaining == 0)
-        for action in actions.iter() {
+        for action in &actions {
             assert!(
                 !matches!(action, Action::Bet(_) | Action::Raise(_) | Action::AllIn),
                 "All-in player should not see Bet/Raise/AllIn, got {action:?}"
@@ -1121,9 +1122,8 @@ mod tests {
             .iter()
             .find(|a| matches!(a, Action::Bet(_)))
             .copied();
-        let bet_amount = match bet_action {
-            Some(Action::Bet(n)) => n,
-            _ => panic!("SB should have a Bet option on the flop"),
+        let Some(Action::Bet(bet_amount)) = bet_action else {
+            panic!("SB should have a Bet option on the flop");
         };
 
         let state = state.apply_action(bet_action.unwrap());
@@ -1198,10 +1198,7 @@ mod tests {
             .find(|a| matches!(a, Action::Bet(_)))
             .copied()
             .unwrap();
-        let bet_amount = match bet {
-            Action::Bet(n) => n,
-            _ => unreachable!(),
-        };
+        let Action::Bet(bet_amount) = bet else { unreachable!() };
         let state = state.apply_action(bet);
         assert_eq!(state.last_bet, 2 + bet_amount);
 
@@ -1212,10 +1209,7 @@ mod tests {
             .find(|a| matches!(a, Action::Raise(_)))
             .copied()
             .unwrap();
-        let raise_amount = match raise {
-            Action::Raise(n) => n,
-            _ => unreachable!(),
-        };
+        let Action::Raise(raise_amount) = raise else { unreachable!() };
         let state = state.apply_action(raise);
 
         // SB calls the raise -> Turn
@@ -1354,7 +1348,7 @@ mod tests {
             exploitability_interval: 0,
             convergence_threshold: 0.0,
         };
-        let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();
+        let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
         solver.solve();
 
         let stats = solver.strategy.stats();
@@ -1369,7 +1363,7 @@ mod tests {
         let mut avg = [0.0f64; 8];
         let found = solver.strategy.get_average_strategy(&info_set, 5, &mut avg);
         if found {
-            let max_prob = avg[..5].iter().cloned().fold(0.0f64, f64::max);
+            let max_prob = avg[..5].iter().copied().fold(0.0f64, f64::max);
             assert!(
                 max_prob < 0.99,
                 "Pocket Aces preflop should not be a pure strategy, got max_prob={max_prob}"

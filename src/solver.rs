@@ -243,7 +243,7 @@ impl CFRSolver {
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn process_card_combination(
-        strategy: &Arc<Strategy>,
+        strategy: &Strategy,
         config: GameConfig,
         rng: &mut rand::rngs::StdRng,
         all_cards: &[Card],
@@ -266,6 +266,7 @@ impl CFRSolver {
             }
         }
 
+        debug_assert!(remaining_len >= 5, "not enough remaining cards for board");
         remaining[..remaining_len].partial_shuffle(rng, 5);
 
         let hands = [hole_sb, hole_bb];
@@ -288,7 +289,7 @@ impl CFRSolver {
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
-        strategy: &Arc<Strategy>,
+        strategy: &Strategy,
         state: &GameState,
         hands: &[[Card; 2]],
         board: &[Card],
@@ -417,7 +418,7 @@ impl CFRSolver {
 
     #[inline]
     fn best_response_traversal(
-        strategy: &Arc<Strategy>,
+        strategy: &Strategy,
         state: &GameState,
         hands: &[[Card; 2]],
         board: &[Card],

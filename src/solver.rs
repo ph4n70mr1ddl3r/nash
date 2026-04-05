@@ -231,7 +231,9 @@ impl CFRSolver {
         let config = self.config;
 
         (0..num_cards).into_par_iter().for_each(|i| {
-            let mut rng = rand::rngs::StdRng::seed_from_u64(i as u64);
+            let mut rng = rand::rngs::StdRng::seed_from_u64(
+                (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ iter_weight.to_bits(),
+            );
             for j in (i + 1)..num_cards {
                 for k in (j + 1)..num_cards {
                     for l in (k + 1)..num_cards {

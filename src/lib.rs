@@ -735,6 +735,22 @@ mod tests {
     }
 
     #[test]
+    fn test_blind_capped_at_stack() {
+        // Tournament scenario: BB has fewer chips than the big blind.
+        // Commitment and pot should reflect actual chips, not the blind amount.
+        let config = GameConfig {
+            initial_stacks: [100, 1],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        assert_eq!(state.committed, [1, 1], "BB commitment should be capped at stack");
+        assert_eq!(state.pot, 2, "pot should be sum of actual commitments");
+        assert_eq!(state.last_bet, 1, "last_bet should be BB's actual commitment");
+    }
+
+    #[test]
     fn test_cfr_config_validate_log_and_save_intervals() {
         let invalid_log = CFRConfig {
             log_interval: 0,

@@ -375,17 +375,30 @@ impl GameState {
     #[must_use]
     #[inline]
     pub const fn new(config: GameConfig) -> Self {
-        let committed = [config.small_blind, config.big_blind];
+        // Cap blind commitments at actual stack sizes (tournament scenario
+        // where a player has fewer chips than the blind).
+        let sb_committed = if config.small_blind < config.initial_stacks[0] {
+            config.small_blind
+        } else {
+            config.initial_stacks[0]
+        };
+        let bb_committed = if config.big_blind < config.initial_stacks[1] {
+            config.big_blind
+        } else {
+            config.initial_stacks[1]
+        };
+        let committed = [sb_committed, bb_committed];
+        let pot = committed[0] + committed[1];
         let all_in_showdown =
             committed[0] >= config.initial_stacks[0] && committed[1] >= config.initial_stacks[1];
         Self {
             street: Street::Preflop,
             current_player: Player::SB,
-            pot: config.small_blind + config.big_blind,
+            pot,
             committed,
             history: ActionHistory::new(),
             min_raise: config.min_bet,
-            last_bet: config.big_blind,
+            last_bet: committed[1], // BB's actual commitment (may be < big_blind)
             config,
             round_start: 0,
             all_in_showdown,

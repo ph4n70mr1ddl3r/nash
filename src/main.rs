@@ -8,22 +8,13 @@ fn main() {
         )
         .init();
 
-    let game_config = GameConfig {
-        initial_stacks: [1000, 1000],
-        small_blind: 1,
-        big_blind: 2,
-        min_bet: 2,
-    };
+    let game_config = GameConfig::default();
 
     let cfr_config = CFRConfig {
         num_iterations: 100,
-        log_interval: 10,
-        save_interval: 50,
-        save_path: Some("strategy.bin".to_string()),
-        use_chance_sampling: true,
-        samples_per_iteration: 0,
         exploitability_interval: 50,
-        convergence_threshold: 0.0,
+        save_path: Some("strategy.bin".to_string()),
+        ..CFRConfig::default()
     };
 
     let mut solver = CFRSolver::new(game_config, cfr_config).unwrap_or_else(|e| {

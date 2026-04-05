@@ -336,13 +336,12 @@ impl<'a> IntoIterator for &'a LegalActions {
 
 impl IntoIterator for LegalActions {
     type Item = Action;
-    type IntoIter = std::array::IntoIter<Action, MAX_ACTIONS>;
+    type IntoIter = std::vec::IntoIter<Action>;
 
     #[inline]
+    #[allow(clippy::unnecessary_to_owned)]
     fn into_iter(self) -> Self::IntoIter {
-        let mut arr = [Action::Fold; MAX_ACTIONS];
-        arr[..self.len as usize].copy_from_slice(&self.actions[..self.len as usize]);
-        arr.into_iter()
+        self.actions[..self.len as usize].to_vec().into_iter()
     }
 }
 
@@ -485,17 +484,25 @@ impl GameState {
             .last_bet
             .saturating_sub(self.committed[self.current_player.index()]);
 
+        // When the opponent is all-in, only offer fold/call/short-all-in.
+        // Bets and raises are pointless (no one to respond) and create
+        // invalid game tree branches in the CFR solver.
+        let opponent_all_in = self.committed[self.current_player.opponent().index()]
+            >= self.config.initial_stacks[self.current_player.opponent().index()];
+
         if to_call == 0 {
             actions[len] = Action::Check;
             len += 1;
 
-            for &frac in BET_FRACTIONS {
-                let bet_size = (self.pot * frac / BET_DENOM).min(remaining);
-                if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
-                    let action = Action::Bet(bet_size);
-                    if !actions[..len].contains(&action) {
-                        actions[len] = action;
-                        len += 1;
+            if !opponent_all_in {
+                for &frac in BET_FRACTIONS {
+                    let bet_size = (self.pot * frac / BET_DENOM).min(remaining);
+                    if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
+                        let action = Action::Bet(bet_size);
+                        if !actions[..len].contains(&action) {
+                            actions[len] = action;
+                            len += 1;
+                        }
                     }
                 }
             }
@@ -503,28 +510,38 @@ impl GameState {
             actions[len] = Action::Call;
             len += 1;
 
-            for &frac in RAISE_FRACTIONS {
-                let raise_over_call = (self.pot * frac / RAISE_DENOM)
-                    .max(self.min_raise)
-                    .min(remaining - to_call);
-                if raise_over_call > 0 && raise_over_call >= self.min_raise && len < MAX_ACTIONS - 1
-                {
-                    let action = Action::Raise(raise_over_call);
-                    if !actions[..len].contains(&action) {
-                        actions[len] = action;
-                        len += 1;
+            if !opponent_all_in {
+                for &frac in RAISE_FRACTIONS {
+                    let raise_over_call = (self.pot * frac / RAISE_DENOM)
+                        .max(self.min_raise)
+                        .min(remaining - to_call);
+                    if raise_over_call > 0
+                        && raise_over_call >= self.min_raise
+                        && len < MAX_ACTIONS - 1
+                    {
+                        let action = Action::Raise(raise_over_call);
+                        if !actions[..len].contains(&action) {
+                            actions[len] = action;
+                            len += 1;
+                        }
                     }
                 }
             }
         }
 
         if remaining > 0 {
-            let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
-                || (to_call < remaining
-                    && actions[..len].contains(&Action::Raise(remaining - to_call)));
-            if !all_in_dup {
-                actions[len] = Action::AllIn;
-                len += 1;
+            // Skip AllIn when opponent is all-in and Call suffices
+            // (to_call < remaining means AllIn would over-commit; to_call == 0 means
+            // nothing to match). When to_call == remaining, AllIn ≡ Call, so keep it.
+            let skip_all_in = opponent_all_in && to_call < remaining;
+            if !skip_all_in {
+                let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
+                    || (to_call < remaining
+                        && actions[..len].contains(&Action::Raise(remaining - to_call)));
+                if !all_in_dup {
+                    actions[len] = Action::AllIn;
+                    len += 1;
+                }
             }
         }
 

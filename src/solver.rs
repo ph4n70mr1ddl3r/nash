@@ -165,7 +165,6 @@ impl CFRSolver {
         info!("CFR+ completed in {:?}", total);
     }
 
-    #[inline]
     fn run_iteration(&self, iter_weight: f64) {
         if self.cfr_config.use_chance_sampling {
             self.run_iteration_sampled(iter_weight);
@@ -174,7 +173,6 @@ impl CFRSolver {
         }
     }
 
-    #[inline]
     fn run_iteration_sampled(&self, iter_weight: f64) {
         let num_samples = if self.cfr_config.samples_per_iteration > 0 {
             self.cfr_config.samples_per_iteration
@@ -214,7 +212,6 @@ impl CFRSolver {
         });
     }
 
-    #[inline]
     fn run_iteration_full(&self, iter_weight: f64) {
         let all_cards = Card::all();
         let num_cards = all_cards.len();
@@ -474,8 +471,8 @@ impl CFRSolver {
     }
 
     #[inline]
-    #[allow(clippy::cast_precision_loss)]
-    fn get_utility_impl(
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    pub(crate) fn get_utility_impl(
         state: &GameState,
         hands: &[[Card; 2]],
         board: &[Card],
@@ -502,16 +499,18 @@ impl CFRSolver {
         let hole = &hands[player.index()];
         let opp_hole = &hands[player.opponent().index()];
 
-        let player_committed = state.committed[player.index()] as f64;
-        let total_pot = state.pot as f64;
+        // Cap utility at the contested amount (min of both commitments).
+        // When stacks are unequal, only the matching portion is at risk;
+        // excess is returned to the bigger-stack player.
+        let contested = state.committed[player.index()]
+            .min(state.committed[player.opponent().index()]) as f64;
 
         let hand = Hand::evaluate(hole, board_set.as_slice());
         let opp_hand = Hand::evaluate(opp_hole, board_set.as_slice());
 
-        let profit = total_pot - player_committed;
         match hand.cmp(&opp_hand) {
-            std::cmp::Ordering::Greater => profit,
-            std::cmp::Ordering::Less => -player_committed,
+            std::cmp::Ordering::Greater => contested,
+            std::cmp::Ordering::Less => -contested,
             std::cmp::Ordering::Equal => 0.0,
         }
     }

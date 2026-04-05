@@ -248,7 +248,8 @@ mod tests {
             min_bet: 2,
         };
         let state = GameState::new(config);
-        let state = state.apply_action(Action::Raise(10));
+        // Legal raises from preflop with pot=3: Raise(2) and Raise(3)
+        let state = state.apply_action(Action::Raise(2));
         assert_eq!(state.street, Street::Preflop);
         assert!(!state.betting_round_closed());
         let state = state.apply_action(Action::Call);
@@ -293,7 +294,7 @@ mod tests {
             min_bet: 2,
         };
         let state = GameState::new(config);
-        let state = state.apply_action(Action::Raise(10));
+        let state = state.apply_action(Action::Raise(2));
         let state = state.apply_action(Action::Fold);
         assert!(state.is_terminal());
         assert!(state.is_fold());
@@ -745,5 +746,183 @@ mod tests {
             ..CFRConfig::default()
         };
         assert!(invalid_save.validate().is_err());
+    }
+
+    // --- Unequal-stack utility tests ---
+
+    #[test]
+    fn test_unequal_stack_showdown_short_stack_wins() {
+        // Both forced all-in from blinds: SB=1, BB=2. contested=min(1,2)=1.
+        // SB wins → nets +1, BB loses -1.
+        let config = GameConfig {
+            initial_stacks: [1, 2],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        assert!(state.is_terminal());
+
+        // SB has pocket Aces, BB has pocket Kings
+        let hole_sb = [card(14, 0), card(14, 1)];
+        let hole_bb = [card(13, 2), card(13, 3)];
+        let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+
+        let utility =
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+        assert!(
+            (utility - 1.0).abs() < 1e-10,
+            "SB should win contested amount (1), got {utility}"
+        );
+
+        let utility_bb =
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::BB);
+        assert!(
+            (utility_bb - (-1.0)).abs() < 1e-10,
+            "BB should lose contested amount (-1), got {utility_bb}"
+        );
+    }
+
+    #[test]
+    fn test_unequal_stack_showdown_big_stack_wins() {
+        // Both forced all-in from blinds: SB=1, BB=2. contested=1.
+        // BB wins → nets +1, SB loses -1.
+        let config = GameConfig {
+            initial_stacks: [1, 2],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+
+        let hole_sb = [card(13, 0), card(13, 1)];
+        let hole_bb = [card(14, 2), card(14, 3)];
+        let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+
+        let utility_sb =
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+        assert!(
+            (utility_sb - (-1.0)).abs() < 1e-10,
+            "SB should lose contested amount (-1), got {utility_sb}"
+        );
+
+        let utility_bb =
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::BB);
+        assert!(
+            (utility_bb - 1.0).abs() < 1e-10,
+            "BB should win contested amount (+1), got {utility_bb}"
+        );
+    }
+
+    #[test]
+    fn test_equal_stack_showdown_unchanged() {
+        // Verify the contested-pot fix doesn't change equal-stack behavior.
+        let config = GameConfig {
+            initial_stacks: [100, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::AllIn);
+        let state = state.apply_action(Action::Call);
+
+        let hole_sb = [card(14, 0), card(14, 1)];
+        let hole_bb = [card(13, 2), card(13, 3)];
+        let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+
+        let utility =
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+        assert!(
+            (utility - 100.0).abs() < 1e-10,
+            "SB should win 100 with equal stacks, got {utility}"
+        );
+    }
+
+    // --- All-in action restriction tests ---
+
+    #[test]
+    fn test_no_raises_against_all_in_opponent() {
+        // SB goes all-in preflop. BB should only see Fold, Call, AllIn (short call).
+        // No bet or raise options.
+        let config = GameConfig {
+            initial_stacks: [10, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::AllIn); // SB all-in for 10
+
+        let actions = state.legal_actions();
+        assert!(actions.contains(&Action::Fold));
+        assert!(actions.contains(&Action::Call));
+        // No Check (facing a bet)
+        assert!(!actions.contains(&Action::Check));
+        // No Bet (opponent all-in)
+        for action in actions.iter() {
+            assert!(
+                !matches!(action, Action::Bet(_)),
+                "Should not offer Bet against all-in opponent"
+            );
+            assert!(
+                !matches!(action, Action::Raise(_)),
+                "Should not offer Raise against all-in opponent"
+            );
+        }
+    }
+
+    #[test]
+    fn test_postflop_no_bets_against_all_in() {
+        // Both see a flop, then one player is all-in. Other should only check.
+        let config = GameConfig {
+            initial_stacks: [100, 10],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        // SB calls, BB checks → flop
+        let state = state.apply_action(Action::Call);
+        let state = state.apply_action(Action::Check);
+        assert_eq!(state.street, Street::Flop);
+
+        // BB goes all-in on flop (BB has 8 remaining)
+        let state = state.apply_action(Action::Check); // SB checks
+        let state = state.apply_action(Action::AllIn); // BB all-in
+
+        // SB faces all-in opponent on flop
+        let actions = state.legal_actions();
+        assert!(actions.contains(&Action::Fold));
+        assert!(actions.contains(&Action::Call));
+        // No bets or raises
+        for action in actions.iter() {
+            assert!(
+                !matches!(action, Action::Bet(_)),
+                "Should not offer Bet against all-in opponent postflop"
+            );
+            assert!(
+                !matches!(action, Action::Raise(_)),
+                "Should not offer Raise against all-in opponent postflop"
+            );
+        }
+    }
+
+    #[test]
+    fn test_legal_actions_owned_intoiter() {
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let actions = state.legal_actions();
+        let slice_len = actions.len();
+        assert_eq!(
+            actions.into_iter().count(),
+            slice_len,
+            "Owned IntoIterator should yield exactly len() actions"
+        );
     }
 }

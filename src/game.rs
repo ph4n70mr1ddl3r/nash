@@ -515,8 +515,7 @@ impl GameState {
                     let raise_over_call = (self.pot * frac / RAISE_DENOM)
                         .max(self.min_raise)
                         .min(remaining - to_call);
-                    if raise_over_call > 0
-                        && raise_over_call >= self.min_raise
+                    if raise_over_call >= self.min_raise
                         && len < MAX_ACTIONS - 1
                     {
                         let action = Action::Raise(raise_over_call);

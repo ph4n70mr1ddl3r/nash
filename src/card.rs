@@ -46,7 +46,7 @@ impl Card {
 
     /// Returns `true` if this card has a valid rank and suit.
     ///
-    /// Placeholder cards (created via [`Card::placeholder`]) return `false`.
+    /// Placeholder cards return `false`.
     #[must_use]
     #[inline]
     pub const fn is_valid(self) -> bool {

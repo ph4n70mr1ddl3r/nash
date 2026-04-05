@@ -560,7 +560,11 @@ impl GameState {
 
             if !opponent_all_in {
                 for &frac in BET_FRACTIONS {
-                    let bet_size = (self.pot * frac / BET_DENOM).min(remaining);
+                    // Use u128 intermediate to prevent overflow when pot * frac
+                    // exceeds u64::MAX (possible with extreme stack sizes).
+                    #[allow(clippy::cast_lossless)]
+                    let bet_size = ((u128::from(self.pot) * u128::from(frac) / u128::from(BET_DENOM))
+                        .min(u128::from(remaining))) as u64;
                     if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
                         let action = Action::Bet(bet_size);
                         if !actions[..len].contains(&action) {
@@ -576,7 +580,11 @@ impl GameState {
 
             if !opponent_all_in {
                 for &frac in RAISE_FRACTIONS {
-                    let raise_over_call = (self.pot * frac / RAISE_DENOM)
+                    // Use u128 intermediate to prevent overflow when pot * frac
+                    // exceeds u64::MAX (possible with extreme stack sizes).
+                    #[allow(clippy::cast_lossless)]
+                    let pot_frac = (u128::from(self.pot) * u128::from(frac) / u128::from(RAISE_DENOM)) as u64;
+                    let raise_over_call = pot_frac
                         .max(self.min_raise)
                         .min(remaining - to_call);
                     if raise_over_call >= self.min_raise

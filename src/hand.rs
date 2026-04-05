@@ -17,7 +17,9 @@ const WHEEL_STRAIGHT_MASK: u32 = 0x403C;
 type FlushResult = Option<([Card; 7], usize)>;
 
 /// An evaluated poker hand with a comparable rank value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct Hand {
     rank: u32,
 }

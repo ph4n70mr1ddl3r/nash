@@ -526,6 +526,9 @@ impl CFRSolver {
         player: Player,
     ) -> f64 {
         if state.is_fold() {
+            // Invariant: is_fold() is true implies the last action is Fold,
+            // which means current_player (opponent of folder) is the winner.
+            // The `else` branch is unreachable but avoids unwrap/expect.
             let Some(winner) = state.winner() else {
                 return 0.0;
             };

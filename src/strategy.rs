@@ -15,7 +15,7 @@ pub const MAX_ACTIONS: usize = 8;
 const MAX_STRATEGY_FILE_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Statistics about the stored strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StrategyStats {
     /// Number of information sets stored.
     pub info_sets: usize,
@@ -41,8 +41,16 @@ impl From<postcard::Error> for StrategyError {
     }
 }
 
+/// Helper struct for deserializing `StrategyEntry` with validation.
+#[derive(Deserialize)]
+struct StrategyEntryHelper {
+    regrets: [f64; MAX_ACTIONS],
+    strategy_sum: [f64; MAX_ACTIONS],
+    num_actions: u8,
+}
+
 /// Strategy data for a single information set.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct StrategyEntry {
     /// Cumulative regrets for each action.
     pub regrets: [f64; MAX_ACTIONS],
@@ -50,6 +58,18 @@ pub struct StrategyEntry {
     pub strategy_sum: [f64; MAX_ACTIONS],
     /// Number of legal actions at this info set.
     pub num_actions: u8,
+}
+
+impl<'de> Deserialize<'de> for StrategyEntry {
+    #[allow(clippy::cast_possible_truncation)]
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let helper = StrategyEntryHelper::deserialize(deserializer)?;
+        Ok(Self {
+            regrets: helper.regrets,
+            strategy_sum: helper.strategy_sum,
+            num_actions: helper.num_actions.min(MAX_ACTIONS as u8),
+        })
+    }
 }
 
 impl StrategyEntry {

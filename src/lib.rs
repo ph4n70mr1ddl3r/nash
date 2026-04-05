@@ -925,4 +925,42 @@ mod tests {
             "Owned IntoIterator should yield exactly len() actions"
         );
     }
+
+    #[test]
+    fn test_all_in_player_cannot_fold() {
+        // SB goes all-in preflop, BB calls. On the flop, SB (all-in) should
+        // only see Check — not Fold. An all-in player has already committed
+        // everything and cannot forfeit.
+        let config = GameConfig {
+            initial_stacks: [10, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        let state = state.apply_action(Action::AllIn); // SB all-in for 10
+        let state = state.apply_action(Action::Call); // BB calls
+
+        // Now on the flop. SB is all-in (committed=10=stack).
+        // current_player should be SB on postflop.
+        assert_eq!(state.street, Street::Flop);
+        assert_eq!(state.current_player, Player::SB);
+
+        let actions = state.legal_actions();
+        assert!(
+            !actions.contains(&Action::Fold),
+            "All-in player should not be offered Fold"
+        );
+        assert!(
+            actions.contains(&Action::Check),
+            "All-in player should be offered Check"
+        );
+        // No bets/raises/all-in (remaining == 0)
+        for action in actions.iter() {
+            assert!(
+                !matches!(action, Action::Bet(_) | Action::Raise(_) | Action::AllIn),
+                "All-in player should not see Bet/Raise/AllIn, got {action:?}"
+            );
+        }
+    }
 }

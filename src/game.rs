@@ -475,10 +475,13 @@ impl GameState {
     #[allow(clippy::cast_possible_truncation)]
     pub fn legal_actions(&self) -> LegalActions {
         let mut actions = [Action::Fold; MAX_ACTIONS];
-        let mut len = 1;
 
         let remaining = self.config.initial_stacks[self.current_player.index()]
             .saturating_sub(self.committed[self.current_player.index()]);
+
+        // An all-in player (remaining == 0) cannot fold — they've already
+        // committed their entire stack. Only offer Check in that case.
+        let mut len = usize::from(remaining != 0);
 
         let to_call = self
             .last_bet

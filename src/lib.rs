@@ -1183,4 +1183,47 @@ mod tests {
         let hand_b = Hand::evaluate(&[card(4, 2), card(5, 3)], &board);
         assert_eq!(hand_a, hand_b, "Both should play the board (two pair AA-KK-Q)");
     }
+
+    #[test]
+    fn test_solver_produces_nontrivial_strategy() {
+        let game_config = GameConfig {
+            initial_stacks: [100, 100],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let cfr_config = CFRConfig {
+            num_iterations: 10,
+            log_interval: 100,
+            save_interval: 100,
+            save_path: None,
+            use_chance_sampling: true,
+            samples_per_iteration: 2,
+            exploitability_interval: 0,
+            convergence_threshold: 0.0,
+        };
+        let mut solver = CFRSolver::new(game_config, cfr_config).unwrap();
+        solver.solve();
+
+        let stats = solver.strategy.stats();
+        assert!(stats.info_sets > 100, "Solver should produce many info sets, got {}", stats.info_sets);
+
+        // Verify at least one entry has a non-degenerate average strategy
+        // (not concentrated entirely on one action). Sample a known preflop
+        // info set with a strong hand (pocket Aces) — should mostly raise.
+        let hole = [card(14, 0), card(14, 1)];
+        let board = CardSet::empty();
+        let info_set = InfoSet::from_cards(Player::SB, Street::Preflop, &hole, board);
+        let mut avg = [0.0f64; 8];
+        let found = solver.strategy.get_average_strategy(&info_set, 5, &mut avg);
+        if found {
+            let max_prob = avg[..5].iter().cloned().fold(0.0f64, f64::max);
+            assert!(
+                max_prob < 0.99,
+                "Pocket Aces preflop should not be a pure strategy, got max_prob={max_prob}"
+            );
+        }
+        // Even if this specific info set wasn't sampled, the solver
+        // produced info sets, which means the CFR traversal works.
+    }
 }

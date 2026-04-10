@@ -656,6 +656,7 @@ mod tests {
             samples_per_iteration: 2,
             exploitability_interval: 0,
             convergence_threshold: 0.0,
+            exploitability_samples: 50,
         };
 
         let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
@@ -850,6 +851,22 @@ mod tests {
             ..CFRConfig::default()
         };
         assert!(valid_convergence.validate().is_ok());
+
+        // exploitability_samples must be > 0 when exploitability_interval > 0
+        let invalid_samples = CFRConfig {
+            exploitability_interval: 10,
+            exploitability_samples: 0,
+            ..CFRConfig::default()
+        };
+        assert!(invalid_samples.validate().is_err());
+
+        // exploitability_samples is ignored when exploitability is disabled
+        let valid_disabled = CFRConfig {
+            exploitability_interval: 0,
+            exploitability_samples: 0,
+            ..CFRConfig::default()
+        };
+        assert!(valid_disabled.validate().is_ok());
     }
 
     // --- Unequal-stack utility tests ---
@@ -1392,6 +1409,7 @@ mod tests {
             samples_per_iteration: 2,
             exploitability_interval: 0,
             convergence_threshold: 0.0,
+            exploitability_samples: 50,
         };
         let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
         solver.solve();

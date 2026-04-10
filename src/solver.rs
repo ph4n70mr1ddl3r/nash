@@ -144,7 +144,7 @@ impl CFRSolver {
             if self.cfr_config.exploitability_interval > 0
                 && iter % self.cfr_config.exploitability_interval == 0
             {
-                let exploitability = self.compute_exploitability(50);
+                let exploitability = self.compute_exploitability(self.cfr_config.exploitability_samples);
                 current_exploitability = Some(exploitability);
 
                 if self.cfr_config.convergence_threshold > 0.0

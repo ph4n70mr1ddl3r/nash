@@ -93,6 +93,9 @@ pub enum CFRConfigError {
     /// Convergence threshold requires a nonzero exploitability interval.
     #[error("convergence_threshold > 0 requires exploitability_interval > 0")]
     ConvergenceWithoutExploitability,
+    /// Exploitability samples must be positive when exploitability is enabled.
+    #[error("exploitability_samples must be > 0 when exploitability_interval > 0")]
+    InvalidExploitabilitySamples,
 }
 
 /// Configuration for the CFR+ solver.
@@ -117,6 +120,10 @@ pub struct CFRConfig {
     /// Exploitability threshold for early stopping. The solver will stop if the
     /// estimated exploitability falls below this value. Set to 0.0 to disable.
     pub convergence_threshold: f64,
+    /// Number of Monte Carlo samples for exploitability estimation.
+    /// Higher values give more accurate estimates but take longer.
+    /// Must be positive when `exploitability_interval > 0`.
+    pub exploitability_samples: usize,
 }
 
 impl CFRConfig {
@@ -142,6 +149,9 @@ impl CFRConfig {
         if self.convergence_threshold > 0.0 && self.exploitability_interval == 0 {
             return Err(CFRConfigError::ConvergenceWithoutExploitability);
         }
+        if self.exploitability_interval > 0 && self.exploitability_samples == 0 {
+            return Err(CFRConfigError::InvalidExploitabilitySamples);
+        }
         Ok(())
     }
 }
@@ -157,6 +167,7 @@ impl Default for CFRConfig {
             samples_per_iteration: 0,
             exploitability_interval: 0,
             convergence_threshold: 0.0,
+            exploitability_samples: 50,
         }
     }
 }

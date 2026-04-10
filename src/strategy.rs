@@ -145,7 +145,7 @@ impl StrategyEntry {
 
     /// Updates regrets and strategy sum for this entry.
     #[inline]
-    pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_o: f64, iter_weight: f64) {
+    pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_reach: f64, iter_weight: f64) {
         let len = self.num_actions as usize;
         debug_assert!(
             regrets.len() >= len && strategy.len() >= len,
@@ -157,7 +157,7 @@ impl StrategyEntry {
             self.regrets[i] = (self.regrets[i] + regret).max(0.0);
         }
         for (i, &strat) in strategy.iter().enumerate().take(len) {
-            self.strategy_sum[i] = (pi_o * strat).mul_add(iter_weight, self.strategy_sum[i]);
+            self.strategy_sum[i] = (pi_reach * strat).mul_add(iter_weight, self.strategy_sum[i]);
         }
     }
 }
@@ -252,18 +252,18 @@ impl Strategy {
         info_set: &InfoSet,
         regrets: &[f64],
         strategy: &[f64],
-        pi_o: f64,
+        pi_reach: f64,
         iter_weight: f64,
     ) {
         use dashmap::mapref::entry::Entry;
 
         match self.entries.entry(info_set.clone()) {
             Entry::Occupied(mut e) => {
-                e.get_mut().update(regrets, strategy, pi_o, iter_weight);
+                e.get_mut().update(regrets, strategy, pi_reach, iter_weight);
             }
             Entry::Vacant(e) => {
                 let mut entry = StrategyEntry::new(regrets.len().max(1));
-                entry.update(regrets, strategy, pi_o, iter_weight);
+                entry.update(regrets, strategy, pi_reach, iter_weight);
                 e.insert(entry);
             }
         }

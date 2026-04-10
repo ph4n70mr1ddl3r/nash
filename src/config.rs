@@ -90,6 +90,9 @@ pub enum CFRConfigError {
     /// Convergence threshold must be non-negative.
     #[error("convergence_threshold must be >= 0")]
     InvalidConvergenceThreshold,
+    /// Convergence threshold requires a nonzero exploitability interval.
+    #[error("convergence_threshold > 0 requires exploitability_interval > 0")]
+    ConvergenceWithoutExploitability,
 }
 
 /// Configuration for the CFR+ solver.
@@ -135,6 +138,9 @@ impl CFRConfig {
         }
         if self.convergence_threshold < 0.0 {
             return Err(CFRConfigError::InvalidConvergenceThreshold);
+        }
+        if self.convergence_threshold > 0.0 && self.exploitability_interval == 0 {
+            return Err(CFRConfigError::ConvergenceWithoutExploitability);
         }
         Ok(())
     }

@@ -75,7 +75,7 @@ pub enum SolverError {
 #[derive(Debug)]
 pub struct CFRSolver {
     /// The computed strategy (shared for concurrent access).
-    pub strategy: Arc<Strategy>,
+    pub(crate) strategy: Arc<Strategy>,
     /// Game configuration.
     pub config: GameConfig,
     /// CFR solver configuration.
@@ -111,6 +111,13 @@ impl CFRSolver {
     #[must_use]
     pub const fn iteration(&self) -> usize {
         self.iteration
+    }
+
+    /// Returns a reference to the computed strategy.
+    #[must_use]
+    #[inline]
+    pub fn strategy(&self) -> &Strategy {
+        &self.strategy
     }
 
     /// Runs the CFR+ algorithm for the configured number of iterations.
@@ -372,8 +379,8 @@ impl CFRSolver {
         hands: &[[Card; 2]],
         board_sets: &BoardSets,
         player: Player,
-        pi_o: f64,
-        pi_neg_o: f64,
+        pi_reach: f64,
+        pi_neg_reach: f64,
         iter_weight: f64,
         sorted_holes: &[[Card; 2]],
     ) -> f64 {
@@ -381,7 +388,7 @@ impl CFRSolver {
             return Self::get_utility_impl(state, hands, board_sets, player);
         }
 
-        if pi_o < CFR_PRUNE_THRESHOLD && pi_neg_o < CFR_PRUNE_THRESHOLD {
+        if pi_reach < CFR_PRUNE_THRESHOLD && pi_neg_reach < CFR_PRUNE_THRESHOLD {
             return 0.0;
         }
 
@@ -419,8 +426,8 @@ impl CFRSolver {
                     hands,
                     board_sets,
                     player,
-                    pi_o * strat[i],
-                    pi_neg_o,
+                    pi_reach * strat[i],
+                    pi_neg_reach,
                     iter_weight,
                     sorted_holes,
                 )
@@ -431,8 +438,8 @@ impl CFRSolver {
                     hands,
                     board_sets,
                     player,
-                    pi_o,
-                    pi_neg_o * strat[i],
+                    pi_reach,
+                    pi_neg_reach * strat[i],
                     iter_weight,
                     sorted_holes,
                 )
@@ -445,14 +452,14 @@ impl CFRSolver {
         if current == player {
             let mut regrets = [0.0f64; MAX_ACTIONS];
             for (i, &av) in action_values.iter().enumerate().take(actions.len()) {
-                regrets[i] = pi_neg_o * (av - node_value);
+                regrets[i] = pi_neg_reach * (av - node_value);
             }
 
             strategy.update_entry(
                 &info_set,
                 &regrets[..actions.len()],
                 &strat[..actions.len()],
-                pi_o,
+                pi_reach,
                 iter_weight,
             );
         }

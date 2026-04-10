@@ -660,7 +660,7 @@ mod tests {
 
         let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
         solver.solve();
-        assert!(!solver.strategy.is_empty());
+        assert!(!solver.strategy().is_empty());
     }
 
     #[test]
@@ -834,6 +834,22 @@ mod tests {
             ..CFRConfig::default()
         };
         assert!(valid_no_save.validate().is_ok());
+
+        // convergence_threshold > 0 requires exploitability_interval > 0
+        let convergence_without_exploit = CFRConfig {
+            convergence_threshold: 0.01,
+            exploitability_interval: 0,
+            ..CFRConfig::default()
+        };
+        assert!(convergence_without_exploit.validate().is_err());
+
+        // convergence_threshold > 0 with nonzero exploitability_interval is valid
+        let valid_convergence = CFRConfig {
+            convergence_threshold: 0.01,
+            exploitability_interval: 10,
+            ..CFRConfig::default()
+        };
+        assert!(valid_convergence.validate().is_ok());
     }
 
     // --- Unequal-stack utility tests ---
@@ -1380,7 +1396,7 @@ mod tests {
         let mut solver = CFRSolver::new(game_config, cfr_config).expect("valid config");
         solver.solve();
 
-        let stats = solver.strategy.stats();
+        let stats = solver.strategy().stats();
         assert!(stats.info_sets > 100, "Solver should produce many info sets, got {}", stats.info_sets);
 
         // Verify at least one entry has a non-degenerate average strategy
@@ -1390,7 +1406,7 @@ mod tests {
         let board = CardSet::empty();
         let info_set = InfoSet::from_cards(Player::SB, Street::Preflop, &hole, board);
         let mut avg = [0.0f64; 8];
-        let found = solver.strategy.get_average_strategy(&info_set, 5, &mut avg);
+        let found = solver.strategy().get_average_strategy(&info_set, 5, &mut avg);
         if found {
             let max_prob = avg[..5].iter().copied().fold(0.0f64, f64::max);
             assert!(

@@ -833,16 +833,17 @@ mod tests {
         let hole_sb = [card(14, 0), card(14, 1)];
         let hole_bb = [card(13, 2), card(13, 3)];
         let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+        let board_sets = crate::solver::BoardSets::from_board(&board);
 
         let utility =
-            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board_sets, Player::SB);
         assert!(
             (utility - 1.0).abs() < 1e-10,
             "SB should win contested amount (1), got {utility}"
         );
 
         let utility_bb =
-            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::BB);
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board_sets, Player::BB);
         assert!(
             (utility_bb - (-1.0)).abs() < 1e-10,
             "BB should lose contested amount (-1), got {utility_bb}"
@@ -864,16 +865,17 @@ mod tests {
         let hole_sb = [card(13, 0), card(13, 1)];
         let hole_bb = [card(14, 2), card(14, 3)];
         let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+        let board_sets = crate::solver::BoardSets::from_board(&board);
 
         let utility_sb =
-            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board_sets, Player::SB);
         assert!(
             (utility_sb - (-1.0)).abs() < 1e-10,
             "SB should lose contested amount (-1), got {utility_sb}"
         );
 
         let utility_bb =
-            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::BB);
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board_sets, Player::BB);
         assert!(
             (utility_bb - 1.0).abs() < 1e-10,
             "BB should win contested amount (+1), got {utility_bb}"
@@ -896,9 +898,10 @@ mod tests {
         let hole_sb = [card(14, 0), card(14, 1)];
         let hole_bb = [card(13, 2), card(13, 3)];
         let board = [card(2, 0), card(4, 1), card(6, 2), card(8, 3), card(9, 0)];
+        let board_sets = crate::solver::BoardSets::from_board(&board);
 
         let utility =
-            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board, Player::SB);
+            CFRSolver::get_utility_impl(&state, &[hole_sb, hole_bb], &board_sets, Player::SB);
         assert!(
             (utility - 100.0).abs() < 1e-10,
             "SB should win 100 with equal stacks, got {utility}"

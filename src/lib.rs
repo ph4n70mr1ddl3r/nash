@@ -577,6 +577,21 @@ mod tests {
     }
 
     #[test]
+    fn test_info_set_hole_card_canonicalization() {
+        // Two info sets constructed with the same cards in different order
+        // must be equal (critical for DashMap lookups).
+        let hole_sorted = [card(14, 0), card(13, 1)];
+        let hole_reversed = [card(13, 1), card(14, 0)];
+        let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+
+        let a = InfoSet::from_cards(Player::SB, Street::Flop, &hole_sorted, board.clone());
+        let b = InfoSet::from_cards(Player::SB, Street::Flop, &hole_reversed, board);
+
+        assert_eq!(a, b, "info sets with same cards in different order should be equal");
+        assert_eq!(a.hole, b.hole, "hole cards should be in canonical order");
+    }
+
+    #[test]
     fn test_card_set_contains() {
         let ace = card(14, 0);
         let king = card(13, 1);

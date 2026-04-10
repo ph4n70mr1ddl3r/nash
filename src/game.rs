@@ -748,28 +748,39 @@ impl InfoSet {
         board: CardSet,
         history: ActionHistory,
     ) -> Self {
+        let mut hole = *hole;
+        if hole[0] > hole[1] {
+            hole.swap(0, 1);
+        }
         Self {
             player,
             street,
-            hole: *hole,
+            hole,
             board,
             history,
         }
     }
 
     /// Creates a new info set from cards.
+    ///
+    /// Hole cards are sorted into canonical order so that equivalent hands
+    /// (e.g., `[Ah, Ks]` and `[Ks, Ah]`) produce identical info sets.
     #[must_use]
     #[inline]
-    pub const fn from_cards(
+    pub fn from_cards(
         player: Player,
         street: Street,
         hole: &[Card; 2],
         board: CardSet,
     ) -> Self {
+        let mut hole = *hole;
+        if hole[0] > hole[1] {
+            hole.swap(0, 1);
+        }
         Self {
             player,
             street,
-            hole: *hole,
+            hole,
             board,
             history: ActionHistory::new(),
         }

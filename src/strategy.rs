@@ -290,6 +290,8 @@ impl Strategy {
     /// Saves the strategy to a binary file.
     ///
     /// The strategy is serialized using postcard for efficient storage.
+    /// Uses atomic rename-from-temp to avoid leaving a corrupt file on
+    /// partial write or serialization failure.
     /// Note: This collects all entries into memory before serialization,
     /// which may be memory-intensive for very large strategies.
     ///
@@ -303,9 +305,14 @@ impl Strategy {
             .iter()
             .map(|e| (e.key().clone(), *e.value()))
             .collect();
-        let file = std::fs::File::create(path)?;
-        let mut writer = std::io::BufWriter::new(file);
-        postcard::to_io(&entries, &mut writer)?;
+        let path = path.as_ref();
+        let tmp_path = path.with_extension("tmp");
+        {
+            let file = std::fs::File::create(&tmp_path)?;
+            let mut writer = std::io::BufWriter::new(file);
+            postcard::to_io(&entries, &mut writer)?;
+        }
+        std::fs::rename(&tmp_path, path)?;
         Ok(())
     }
 

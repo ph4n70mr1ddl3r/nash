@@ -570,10 +570,17 @@ mod tests {
     fn test_info_set_display() {
         let hole = [card(14, 0), card(13, 1)];
         let board = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
-        let info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+        let mut info_set = InfoSet::from_cards(Player::SB, Street::Flop, &hole, board);
+        info_set.add_action(&Action::Check);
+        info_set.add_action(&Action::Bet(4));
         let display = format!("{info_set}");
         assert!(display.contains("SB"));
         assert!(display.contains("Flop"));
+        // Actions must be separated to avoid ambiguity (e.g. "CheckBet(4)" vs "Check,Bet(4)")
+        assert!(
+            display.contains("Check,Bet(4)"),
+            "actions should be comma-separated, got: {display}"
+        );
     }
 
     #[test]

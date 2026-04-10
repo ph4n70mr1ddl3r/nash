@@ -805,7 +805,10 @@ impl fmt::Display for InfoSet {
         }
         if !self.history.is_empty() {
             write!(f, ":")?;
-            for action in &self.history {
+            for (i, action) in self.history.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ",")?;
+                }
                 write!(f, "{action}")?;
             }
         }

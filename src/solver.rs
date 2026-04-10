@@ -72,7 +72,7 @@ pub enum SolverError {
 }
 
 /// CFR+ solver for heads-up No-Limit Hold'em.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CFRSolver {
     /// The computed strategy (shared for concurrent access).
     pub strategy: Arc<Strategy>,

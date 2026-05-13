@@ -30,10 +30,15 @@ use crate::hand::Hand;
 use crate::strategy::{Strategy, MAX_ACTIONS};
 
 /// Minimum reach probability product before pruning a subtree.
+///
+/// When both `pi_reach` and `pi_neg_reach` fall below this threshold,
+/// the subtree contribution is negligible and traversal is skipped.
 const CFR_PRUNE_THRESHOLD: f64 = 1e-10;
 
 /// Precomputed board card sets indexed by street ordinal.
-/// Avoids reconstructing `CardSet` on every CFR node visit.
+///
+/// Avoids reconstructing [`CardSet`] on every CFR node visit by building
+/// all four street views once from the shuffled board.
 #[derive(Clone)]
 pub(crate) struct BoardSets([CardSet; 4]);
 

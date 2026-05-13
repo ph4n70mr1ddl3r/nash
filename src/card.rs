@@ -55,6 +55,7 @@ impl Card {
 
     /// Returns a static reference to all 52 cards in the deck.
     #[must_use]
+    #[inline]
     pub fn all() -> &'static [Self; NUM_CARDS] {
         &ALL_CARDS
     }

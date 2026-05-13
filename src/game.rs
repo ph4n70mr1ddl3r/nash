@@ -9,14 +9,18 @@ use crate::card::{Card, CardSet};
 use crate::config::GameConfig;
 use crate::strategy::MAX_ACTIONS;
 
-/// Number of players in heads-up poker.
+/// Number of players in heads-up poker (always 2).
 pub const NUM_PLAYERS: usize = 2;
 
 /// Pot fractions used to generate bet sizing options (1/3-pot, 2/3-pot, full pot).
+///
+/// Each fraction is divided by [`BET_DENOM`] to produce the actual sizing.
 const BET_FRACTIONS: &[u64] = &[1, 2, 3];
 /// Denominator for [`BET_FRACTIONS`] (divides pot into thirds).
 const BET_DENOM: u64 = 3;
 /// Pot fractions used to generate raise sizing options (1/2-pot, full pot over the call).
+///
+/// Each fraction is divided by [`RAISE_DENOM`] to produce the actual sizing.
 const RAISE_FRACTIONS: &[u64] = &[1, 2];
 /// Denominator for [`RAISE_FRACTIONS`] (divides pot into halves).
 const RAISE_DENOM: u64 = 2;
@@ -158,7 +162,10 @@ impl fmt::Display for Action {
     }
 }
 
-/// Maximum number of actions tracked in an `ActionHistory`.
+/// Maximum number of actions tracked in an [`ActionHistory`].
+///
+/// Chosen to be large enough for any realistic heads-up NLHE hand while keeping
+/// the struct small enough for efficient copying during CFR traversal.
 const MAX_HISTORY_LEN: usize = 24;
 
 /// Fixed-size action history that avoids heap allocation.
@@ -334,7 +341,21 @@ impl<'a> IntoIterator for &'a LegalActions {
     }
 }
 
-/// Stack-allocated owned iterator over `LegalActions`.
+impl fmt::Display for LegalActions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, action) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{action}")?;
+        }
+        write!(f, "]")
+    }
+}
+
+/// Stack-allocated owned iterator over [`LegalActions`].
+///
 /// Avoids heap allocation compared to `Vec::into_iter`.
 #[derive(Debug, Clone)]
 pub struct LegalActionsIter {
@@ -388,23 +409,29 @@ impl IntoIterator for LegalActions {
 }
 
 /// Complete state of a poker hand.
+///
+/// Tracks the betting street, pot, commitments, action history, and game
+/// configuration. Created via [`GameState::new`] with blinds posted.
 #[derive(Debug, Clone)]
 pub struct GameState {
     /// Current betting street.
     pub street: Street,
     /// Player whose turn it is to act.
     pub current_player: Player,
-    /// Current pot size.
+    /// Current pot size (sum of both players' commitments).
     pub pot: u64,
-    /// Amount each player has committed to the pot.
+    /// Amount each player has committed to the pot `[SB, BB]`.
+    ///
+    /// Blind commitments are capped at actual stack sizes in tournament scenarios
+    /// where a player has fewer chips than the blind amount.
     pub committed: [u64; NUM_PLAYERS],
     /// History of actions taken in this hand.
     pub history: ActionHistory,
     /// Minimum raise size for the current betting round.
     pub min_raise: u64,
-    /// The highest bet amount in the current round.
+    /// The highest total commitment in the current round.
     pub last_bet: u64,
-    /// Game configuration.
+    /// Game configuration (stacks, blinds, min bet).
     pub config: GameConfig,
     /// Index in `history` where the current betting round started.
     round_start: usize,
@@ -730,6 +757,23 @@ pub struct InfoSet {
     pub board: CardSet,
     /// Betting history.
     pub history: ActionHistory,
+}
+
+impl fmt::Display for GameState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} pot:{} committed:[{},{}] actions:{{",
+            self.street, self.current_player, self.pot, self.committed[0], self.committed[1]
+        )?;
+        for (i, action) in self.history.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{action}")?;
+        }
+        write!(f, "}}")
+    }
 }
 
 impl InfoSet {

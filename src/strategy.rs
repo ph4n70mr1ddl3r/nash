@@ -9,9 +9,13 @@ use thiserror::Error;
 use crate::game::InfoSet;
 
 /// Maximum number of actions supported at any decision point.
+///
+/// Chosen to accommodate Fold, Check, Call, up to 3 bet/raise sizes, and `AllIn`.
 pub(crate) const MAX_ACTIONS: usize = 8;
 
 /// Maximum allowed file size for strategy loading (4 GB).
+///
+/// Prevents out-of-memory conditions from corrupted or malicious files.
 const MAX_STRATEGY_FILE_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Statistics about the stored strategy.
@@ -262,7 +266,7 @@ impl Strategy {
                 e.get_mut().update(regrets, strategy, pi_reach, iter_weight);
             }
             Entry::Vacant(e) => {
-                let mut entry = StrategyEntry::new(regrets.len().max(1));
+                let mut entry = StrategyEntry::new(regrets.len());
                 entry.update(regrets, strategy, pi_reach, iter_weight);
                 e.insert(entry);
             }

@@ -51,6 +51,9 @@ impl Hand {
     }
 
     /// Evaluates a poker hand from hole cards and board.
+    ///
+    /// Accepts 0–5 board cards. With fewer than 5 total cards, only pair-based
+    /// hand types are detected (flushes and straights require 5 cards).
     #[must_use]
     #[inline]
     pub fn evaluate(hole: &[Card; 2], board: &[Card]) -> Self {
@@ -378,6 +381,6 @@ impl fmt::Display for HandType {
 impl fmt::Display for Hand {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (rank: {})", self.hand_type(), self.rank)
+        write!(f, "{}", self.hand_type())
     }
 }

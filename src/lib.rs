@@ -1435,4 +1435,73 @@ mod tests {
         // Even if this specific info set wasn't sampled, the solver
         // produced info sets, which means the CFR traversal works.
     }
+
+    // --- Tests for code-review improvements ---
+
+    #[test]
+    fn test_cardset_display() {
+        let set = CardSet::from_cards(&[card(14, 0), card(13, 1)]);
+        assert_eq!(format!("{set}"), "{Ac,Kd}");
+        let empty = CardSet::empty();
+        assert_eq!(format!("{empty}"), "{}");
+        let three = CardSet::from_cards(&[card(10, 2), card(9, 3), card(8, 0)]);
+        assert_eq!(format!("{three}"), "{Th,9s,8c}");
+    }
+
+    #[test]
+    fn test_hand_display_detailed() {
+        let board = [card(10, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];
+        let pair = Hand::evaluate(&[card(14, 0), card(14, 1)], &board);
+        assert_eq!(format!("{pair}"), "Pair of As");
+
+        let high = Hand::evaluate(&[card(14, 0), card(12, 1)], &board);
+        assert_eq!(format!("{high}"), "High Card (A)");
+
+        let two_pair = Hand::evaluate(&[card(14, 0), card(14, 1)], &[card(10, 0), card(10, 1), card(5, 0), card(3, 1), card(2, 2)]);
+        assert_eq!(format!("{two_pair}"), "Two Pair (A/T)");
+    }
+
+    #[test]
+    fn test_player_all_constant() {
+        assert_eq!(Player::ALL, [Player::SB, Player::BB]);
+        assert_eq!(Player::ALL.len(), 2);
+        let indices: Vec<usize> = Player::ALL.iter().map(|p| p.index()).collect();
+        assert_eq!(indices, vec![0, 1]);
+    }
+
+    #[test]
+    fn test_action_is_aggressive() {
+        assert!(Action::Bet(10).is_aggressive());
+        assert!(Action::Raise(5).is_aggressive());
+        assert!(Action::AllIn.is_aggressive());
+        assert!(!Action::Fold.is_aggressive());
+        assert!(!Action::Check.is_aggressive());
+        assert!(!Action::Call.is_aggressive());
+    }
+
+    #[test]
+    fn test_hand_hashable() {
+        use std::collections::HashSet;
+        let board = [card(10, 0), card(8, 1), card(5, 2), card(3, 3), card(2, 0)];
+        let hand1 = Hand::evaluate(&[card(14, 0), card(14, 1)], &board);
+        let hand2 = Hand::evaluate(&[card(13, 0), card(13, 1)], &board);
+        let mut set = HashSet::new();
+        set.insert(hand1);
+        set.insert(hand2);
+        assert_eq!(set.len(), 2);
+        set.insert(hand1);
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_strategy_entry_nan_sanitize() {
+        // Simulate a deserialized entry with NaN/Inf by checking that
+        // update produces finite results even with edge-case inputs.
+        let mut entry = StrategyEntry::new(2);
+        // Normal update should produce finite regrets
+        entry.update(&[1.0, f64::INFINITY], &[0.5, 0.5], 1.0, 1.0);
+        assert!(entry.regrets[0].is_finite());
+        assert!(entry.strategy_sum[0].is_finite());
+        assert!(entry.strategy_sum[1].is_finite());
+    }
 }

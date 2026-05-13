@@ -36,6 +36,12 @@ pub enum Player {
 }
 
 impl Player {
+    /// All player positions in deal order.
+    ///
+    /// Useful for iterating over both players without manually
+    /// constructing the array (e.g. in CFR traversal and tests).
+    pub const ALL: [Self; 2] = [Self::SB, Self::BB];
+
     /// Returns the array index for this player (0 for SB, 1 for BB).
     #[must_use]
     #[inline]
@@ -146,6 +152,19 @@ pub enum Action {
     Raise(u64),
     /// Go all-in with remaining stack.
     AllIn,
+}
+
+impl Action {
+    /// Returns `true` if this action puts more chips into the pot.
+    ///
+    /// Aggressive actions (bet, raise, all-in) reopen the betting
+    /// and give the opponent a chance to respond. Passive actions
+    /// (fold, check, call) do not.
+    #[must_use]
+    #[inline]
+    pub const fn is_aggressive(self) -> bool {
+        matches!(self, Self::Bet(_) | Self::Raise(_) | Self::AllIn)
+    }
 }
 
 impl fmt::Display for Action {
@@ -441,6 +460,15 @@ pub struct GameState {
 
 impl GameState {
     /// Creates a new game state with blinds posted.
+    ///
+    /// Blind commitments are capped at actual stack sizes (tournament scenario
+    /// where a player has fewer chips than the blind amount).
+    ///
+    /// # Preconditions
+    ///
+    /// Callers should ensure `config.validate()` returns `Ok(())` before
+    /// calling this constructor. Invalid configs (zero stacks, bad blind
+    /// ratios, or overflow) produce undefined game behaviour.
     #[must_use]
     #[inline]
     pub const fn new(config: GameConfig) -> Self {

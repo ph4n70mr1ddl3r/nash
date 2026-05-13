@@ -193,6 +193,19 @@ impl CardSet {
     }
 }
 
+impl fmt::Display for CardSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, card) in self.as_slice().iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{card}")?;
+        }
+        write!(f, "}}")
+    }
+}
+
 impl Default for CardSet {
     fn default() -> Self {
         Self::empty()

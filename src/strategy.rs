@@ -19,7 +19,7 @@ pub(crate) const MAX_ACTIONS: usize = 8;
 const MAX_STRATEGY_FILE_SIZE: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Statistics about the stored strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct StrategyStats {
     /// Number of information sets stored.
     pub info_sets: usize,
@@ -68,10 +68,13 @@ impl<'de> Deserialize<'de> for StrategyEntry {
     #[allow(clippy::cast_possible_truncation)]
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let helper = StrategyEntryHelper::deserialize(deserializer)?;
+        let num_actions = helper.num_actions.min(MAX_ACTIONS as u8);
+        let regrets = Self::sanitize_floats(helper.regrets);
+        let strategy_sum = Self::sanitize_floats(helper.strategy_sum);
         Ok(Self {
-            regrets: helper.regrets,
-            strategy_sum: helper.strategy_sum,
-            num_actions: helper.num_actions.min(MAX_ACTIONS as u8),
+            regrets,
+            strategy_sum,
+            num_actions,
         })
     }
 }
@@ -86,6 +89,17 @@ impl StrategyEntry {
             strategy_sum: [0.0; MAX_ACTIONS],
             num_actions: num_actions.min(MAX_ACTIONS) as u8,
         }
+    }
+
+    /// Replaces NaN/Inf values with 0.0 to prevent poison propagation.
+    #[inline]
+    fn sanitize_floats(mut arr: [f64; MAX_ACTIONS]) -> [f64; MAX_ACTIONS] {
+        for val in &mut arr {
+            if !val.is_finite() {
+                *val = 0.0;
+            }
+        }
+        arr
     }
 
     /// Returns the number of actions for this entry.
@@ -148,6 +162,9 @@ impl StrategyEntry {
     }
 
     /// Updates regrets and strategy sum for this entry.
+    ///
+    /// When `pi_reach` is negligible (< 1e-15), the strategy-sum contribution
+    /// is a no-op and the update is skipped to avoid unnecessary floating-point work.
     #[inline]
     pub fn update(&mut self, regrets: &[f64], strategy: &[f64], pi_reach: f64, iter_weight: f64) {
         let len = self.num_actions as usize;
@@ -160,8 +177,13 @@ impl StrategyEntry {
         for (i, &regret) in regrets.iter().enumerate().take(len) {
             self.regrets[i] = (self.regrets[i] + regret).max(0.0);
         }
-        for (i, &strat) in strategy.iter().enumerate().take(len) {
-            self.strategy_sum[i] = (pi_reach * strat).mul_add(iter_weight, self.strategy_sum[i]);
+        // Skip strategy-sum update when reach probability is negligible.
+        // The contribution `pi_reach * strat[i] * iter_weight` would be < 1e-15
+        // and not affect the average strategy meaningfully.
+        if pi_reach > 1e-15 {
+            for (i, &strat) in strategy.iter().enumerate().take(len) {
+                self.strategy_sum[i] = (pi_reach * strat).mul_add(iter_weight, self.strategy_sum[i]);
+            }
         }
     }
 }

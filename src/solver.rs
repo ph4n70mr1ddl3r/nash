@@ -260,7 +260,7 @@ impl CFRSolver {
 
             let state = GameState::new(config);
 
-            for &player in &[Player::SB, Player::BB] {
+            for &player in &Player::ALL {
                 Self::cfr_traversal_static(
                     &strategy,
                     &state,
@@ -361,7 +361,7 @@ impl CFRSolver {
         let board = &remaining[board_start..remaining_len];
         let board_sets = BoardSets::from_board(board);
 
-        for &player in &[Player::SB, Player::BB] {
+        for &player in &Player::ALL {
             Self::cfr_traversal_static(
                 strategy,
                 &state,
@@ -505,7 +505,7 @@ impl CFRSolver {
                 let mut sorted_hands = hands;
                 sorted_hands[0].sort_unstable();
                 sorted_hands[1].sort_unstable();
-                for &player in &[Player::SB, Player::BB] {
+                for &player in &Player::ALL {
                     let state = GameState::new(config);
                     br_sum +=
                         Self::best_response_traversal(&strategy, &state, &hands, &board_sets, player, &sorted_hands);

@@ -21,6 +21,9 @@ type FlushResult = Option<([Card; 7], usize)>;
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
 )]
 pub struct Hand {
+    /// Internal encoding: `(hand_type << 24) | (kicker1 << 20) | (kicker2 << 16) | ...`
+    /// The hand type determines the category (high card through royal flush),
+    /// and the kicker bits break ties within the same category.
     rank: u32,
 }
 
@@ -381,6 +384,30 @@ impl fmt::Display for HandType {
 impl fmt::Display for Hand {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.hand_type())
+        // Decode primary rank from bits [20..24] for descriptive output.
+        let primary = ((self.rank >> 20) & 0xF) as u8;
+        let secondary = ((self.rank >> 16) & 0xF) as u8;
+        let rank_str = |r: u8| -> &'static str {
+            match r {
+                14 => "A",
+                13 => "K",
+                12 => "Q",
+                11 => "J",
+                10 => "T",
+                _ => "x",
+            }
+        };
+        match self.hand_type() {
+            HandType::RoyalFlush => write!(f, "Royal Flush"),
+            HandType::StraightFlush => write!(f, "Straight Flush ({})", rank_str(primary)),
+            HandType::FourOfAKind => write!(f, "Four {}s", rank_str(primary)),
+            HandType::FullHouse => write!(f, "{}s full of {}s", rank_str(primary), rank_str(secondary)),
+            HandType::Flush => write!(f, "Flush ({})", rank_str(primary)),
+            HandType::Straight => write!(f, "Straight ({})", rank_str(primary)),
+            HandType::ThreeOfAKind => write!(f, "Three {}s", rank_str(primary)),
+            HandType::TwoPair => write!(f, "Two Pair ({}/{})", rank_str(primary), rank_str(secondary)),
+            HandType::Pair => write!(f, "Pair of {}s", rank_str(primary)),
+            HandType::HighCard => write!(f, "High Card ({})", rank_str(primary)),
+        }
     }
 }

@@ -28,6 +28,14 @@ pub struct Hand {
 }
 
 impl Hand {
+    /// Maps a rank value (2–14) to its display string.
+    ///
+    /// Index 0–1 are unused (no such ranks); indices 2–9 map to "2"–"9",
+    /// and 10–14 map to "T", "J", "Q", "K", "A".
+    const RANK_DISPLAY: [&str; 15] = [
+        "?", "?", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A",
+    ];
+
     /// Returns the internal rank value for this hand.
     #[must_use]
     #[inline]
@@ -372,17 +380,10 @@ impl fmt::Display for Hand {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Decode primary rank from bits [20..24] for descriptive output.
-        let primary = ((self.rank >> 20) & 0xF) as u8;
-        let secondary = ((self.rank >> 16) & 0xF) as u8;
-        let rank_str = |r: u8| -> &'static str {
-            match r {
-                14 => "A",
-                13 => "K",
-                12 => "Q",
-                11 => "J",
-                10 => "T",
-                _ => "x",
-            }
+        let primary = ((self.rank >> 20) & 0xF) as usize;
+        let secondary = ((self.rank >> 16) & 0xF) as usize;
+        let rank_str = |r: usize| -> &'static str {
+            Self::RANK_DISPLAY.get(r).map_or("?", |s| *s)
         };
         match self.hand_type() {
             HandType::RoyalFlush => write!(f, "Royal Flush"),

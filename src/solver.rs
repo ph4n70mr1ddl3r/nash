@@ -81,6 +81,7 @@ impl DealContext {
     ///
     /// Hole cards are sorted into canonical order for consistent info-set
     /// construction during CFR traversal.
+    #[inline]
     fn new(hands: [[Card; 2]; 2], board: &[Card]) -> Self {
         let board_sets = BoardSets::from_board(board);
         let mut sorted_holes = hands;

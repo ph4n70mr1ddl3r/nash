@@ -1504,4 +1504,31 @@ mod tests {
         assert!(entry.strategy_sum[0].is_finite());
         assert!(entry.strategy_sum[1].is_finite());
     }
+
+    #[test]
+    fn test_hand_display_low_ranks() {
+        // Verify Hand::Display shows actual rank digits for ranks 2–9,
+        // not placeholder "x" characters.
+        let board = [card(14, 2), card(13, 3), card(6, 0), card(4, 1), card(3, 2)];
+
+        let pair_twos = Hand::evaluate(&[card(2, 0), card(2, 1)], &board);
+        let display = format!("{pair_twos}");
+        assert_eq!(display, "Pair of 2s", "low-rank pair should show digit, got: {display}");
+
+        let pair_sevens = Hand::evaluate(&[card(7, 0), card(7, 1)], &board);
+        let display = format!("{pair_sevens}");
+        assert_eq!(display, "Pair of 7s", "got: {display}");
+
+        // Three of a kind with rank 6
+        let trips = Hand::evaluate(&[card(6, 2), card(6, 3)], &board);
+        let display = format!("{trips}");
+        assert_eq!(display, "Three 6s", "got: {display}");
+
+        // High card 9 — board must not contain any card higher than 9
+        // and cards must not form a straight.
+        let low_board = [card(8, 0), card(6, 1), card(4, 2), card(3, 3), card(2, 1)];
+        let high_nine = Hand::evaluate(&[card(9, 0), card(7, 2)], &low_board);
+        let display = format!("{high_nine}");
+        assert_eq!(display, "High Card (9)", "got: {display}");
+    }
 }

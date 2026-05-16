@@ -92,7 +92,10 @@ impl fmt::Display for Card {
             1 => 'd',
             2 => 'h',
             3 => 's',
-            _ => '?',
+            _ => {
+                debug_assert!(false, "invalid suit {}", self.suit);
+                '?'
+            }
         };
         write!(f, "{rank_char}{suit_char}")
     }

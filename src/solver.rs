@@ -41,8 +41,9 @@ const CFR_PRUNE_THRESHOLD: f64 = 1e-10;
 /// so that traversal functions take a single `&DealContext` instead of
 /// multiple separate parameters.
 ///
-/// Hole cards are stored in canonical (sorted) order. The original deal order
-/// is irrelevant because [`Hand::evaluate`] sorts internally.
+/// Hole cards are stored in their original deal order. Canonical ordering
+/// (sorted) is applied at info-set construction time in
+/// [`InfoSet::from_cards_with_history`], so sorting here would be redundant.
 #[derive(Debug, Clone)]
 struct DealContext {
     holes: [[Card; 2]; 2],
@@ -233,10 +234,11 @@ impl CFRSolver {
     /// "converged", "final") for traceability.
     fn save_strategy(&self, reason: &str) {
         if let Some(ref path) = self.cfr_config.save_path {
+            let stats = self.strategy.stats();
             if let Err(e) = self.strategy.save(path) {
                 warn!("Failed to save {reason} strategy: {e}");
             } else {
-                info!("Saved {reason} strategy to {path}");
+                info!("Saved {reason} strategy to {path} ({stats})");
             }
         }
     }

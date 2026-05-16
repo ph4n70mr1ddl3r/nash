@@ -1531,4 +1531,34 @@ mod tests {
         let display = format!("{high_nine}");
         assert_eq!(display, "High Card (9)", "got: {display}");
     }
+
+    #[test]
+    fn test_deck_remaining() {
+        let mut deck = Deck::new();
+        assert_eq!(deck.remaining(), 52);
+        let _ = deck.deal_into::<5>();
+        assert_eq!(deck.remaining(), 47);
+        let _ = deck.deal_into::<4>();
+        assert_eq!(deck.remaining(), 43);
+        let _ = deck.deal_into::<43>();
+        assert_eq!(deck.remaining(), 0);
+    }
+
+    #[test]
+    fn test_game_state_to_call() {
+        let config = GameConfig {
+            initial_stacks: [1000, 1000],
+            small_blind: 1,
+            big_blind: 2,
+            min_bet: 2,
+        };
+        let state = GameState::new(config);
+        // SB committed 1, last_bet=2 → to_call=1 for SB, 0 for BB
+        assert_eq!(state.to_call(Player::SB), 1);
+        assert_eq!(state.to_call(Player::BB), 0);
+
+        // After SB calls, to_call is 0 for both
+        let state = state.apply_action(Action::Call);
+        assert_eq!(state.to_call(Player::BB), 0);
+    }
 }

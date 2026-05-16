@@ -250,6 +250,13 @@ impl Deck {
         self.pos = 0;
     }
 
+    /// Returns the number of cards remaining in the deck.
+    #[must_use]
+    #[inline]
+    pub const fn remaining(&self) -> usize {
+        self.cards.len().saturating_sub(self.pos)
+    }
+
     /// Deals `n` cards from the deck (or fewer if not enough cards remain).
     #[cfg(test)]
     #[inline]

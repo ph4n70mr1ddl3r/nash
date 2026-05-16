@@ -607,6 +607,14 @@ impl GameState {
             .saturating_sub(self.committed[player.index()])
     }
 
+    /// Returns the amount the given player must add to match the current bet.
+    #[must_use]
+    #[inline]
+    pub const fn to_call(&self, player: Player) -> u64 {
+        self.last_bet
+            .saturating_sub(self.committed[player.index()])
+    }
+
     /// Returns `true` if the player has committed their entire stack (all-in).
     #[must_use]
     #[inline]
@@ -627,9 +635,7 @@ impl GameState {
         // committed their entire stack. Only offer Check in that case.
         let mut len = usize::from(remaining != 0);
 
-        let to_call = self
-            .last_bet
-            .saturating_sub(self.committed[self.current_player.index()]);
+        let to_call = self.to_call(self.current_player);
 
         // When the opponent is all-in, only offer fold/call/short-all-in.
         // Bets and raises are pointless (no one to respond) and create
@@ -769,9 +775,7 @@ impl GameState {
         match action {
             Action::Fold | Action::Check => {}
             Action::Call => {
-                let to_call = self
-                    .last_bet
-                    .saturating_sub(self.committed[self.current_player.index()]);
+                let to_call = self.to_call(self.current_player);
                 new_state.committed[self.current_player.index()] += to_call;
                 new_state.pot += to_call;
             }
@@ -782,9 +786,7 @@ impl GameState {
                 new_state.min_raise = amount;
             }
             Action::Raise(amount) => {
-                let to_call = self
-                    .last_bet
-                    .saturating_sub(self.committed[self.current_player.index()]);
+                let to_call = self.to_call(self.current_player);
                 let total = to_call + amount;
                 new_state.committed[new_state.current_player.index()] += total;
                 new_state.pot += total;
@@ -793,9 +795,7 @@ impl GameState {
             }
             Action::AllIn => {
                 let remaining = self.remaining_stack(self.current_player);
-                let to_call = self
-                    .last_bet
-                    .saturating_sub(self.committed[self.current_player.index()]);
+                let to_call = self.to_call(self.current_player);
                 new_state.committed[self.current_player.index()] += remaining;
                 new_state.pot += remaining;
                 new_state.last_bet = new_state.committed[new_state.current_player.index()];

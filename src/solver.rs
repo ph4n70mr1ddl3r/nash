@@ -35,11 +35,23 @@ use crate::strategy::{Strategy, MAX_ACTIONS};
 /// the subtree contribution is negligible and traversal is skipped.
 const CFR_PRUNE_THRESHOLD: f64 = 1e-10;
 
+/// Immutable per-deal context shared across CFR and best-response traversals.
+///
+/// Groups the data that is fixed for a single card deal (hole cards, board,
+/// sorted holes for info-set construction) so that traversal functions take
+/// a single `&DealContext` instead of four separate parameters.
+#[derive(Debug, Clone)]
+struct DealContext {
+    hands: [[Card; 2]; 2],
+    board_sets: BoardSets,
+    sorted_holes: [[Card; 2]; 2],
+}
+
 /// Precomputed board card sets indexed by street ordinal.
 ///
 /// Avoids reconstructing [`CardSet`] on every CFR node visit by building
 /// all four street views once from the shuffled board.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct BoardSets([CardSet; 4]);
 
 impl BoardSets {
@@ -61,6 +73,24 @@ impl BoardSets {
             Street::River => 3,
         };
         &self.0[idx]
+    }
+}
+
+impl DealContext {
+    /// Builds a deal context from hole cards and the full 5-card board.
+    ///
+    /// Hole cards are sorted into canonical order for consistent info-set
+    /// construction during CFR traversal.
+    fn new(hands: [[Card; 2]; 2], board: &[Card]) -> Self {
+        let board_sets = BoardSets::from_board(board);
+        let mut sorted_holes = hands;
+        sorted_holes[0].sort_unstable();
+        sorted_holes[1].sort_unstable();
+        Self {
+            hands,
+            board_sets,
+            sorted_holes,
+        }
     }
 }
 
@@ -245,30 +275,24 @@ impl CFRSolver {
             deck.shuffle(&mut rng);
 
             let hole_cards = deck.deal_into::<4>();
-            let hole_sb = [hole_cards[0], hole_cards[1]];
-            let hole_bb = [hole_cards[2], hole_cards[3]];
+            let hands = [
+                [hole_cards[0], hole_cards[1]],
+                [hole_cards[2], hole_cards[3]],
+            ];
 
             let board = deck.deal_into::<5>();
-            let board_sets = BoardSets::from_board(&board);
-            let hands = [hole_sb, hole_bb];
-
-            let mut sorted_hands = hands;
-            sorted_hands[0].sort_unstable();
-            sorted_hands[1].sort_unstable();
-
+            let deal = DealContext::new(hands, &board);
             let state = GameState::new(config);
 
             for &player in &Player::ALL {
                 Self::cfr_traversal_static(
                     &strategy,
                     &state,
-                    &hands,
-                    &board_sets,
+                    &deal,
                     player,
                     1.0,
                     1.0,
                     iter_weight,
-                    &sorted_hands,
                 );
             }
         });
@@ -330,8 +354,7 @@ impl CFRSolver {
         l: usize,
         iter_weight: f64,
     ) {
-        let hole_sb = [all_cards[i], all_cards[j]];
-        let hole_bb = [all_cards[k], all_cards[l]];
+        let hands = [[all_cards[i], all_cards[j]], [all_cards[k], all_cards[l]]];
         let excluded_mask: u64 = (1u64 << i) | (1u64 << j) | (1u64 << k) | (1u64 << l);
 
         let mut remaining: [Card; 48] = [Card::placeholder(); 48];
@@ -346,49 +369,37 @@ impl CFRSolver {
         debug_assert!(remaining_len >= 5, "not enough remaining cards for board");
         remaining[..remaining_len].partial_shuffle(rng, 5);
 
-        let hands = [hole_sb, hole_bb];
-        let mut sorted_hands = hands;
-        sorted_hands[0].sort_unstable();
-        sorted_hands[1].sort_unstable();
-
-        let state = GameState::new(config);
-
         // partial_shuffle places the randomly selected elements at the END
         // of the slice (indices [len-amount..len]), not the beginning.
         let board_start = remaining_len - 5;
-        let board = &remaining[board_start..remaining_len];
-        let board_sets = BoardSets::from_board(board);
+        let deal = DealContext::new(hands, &remaining[board_start..remaining_len]);
+        let state = GameState::new(config);
 
         for &player in &Player::ALL {
             Self::cfr_traversal_static(
                 strategy,
                 &state,
-                &hands,
-                &board_sets,
+                &deal,
                 player,
                 1.0,
                 1.0,
                 iter_weight,
-                &sorted_hands,
             );
         }
     }
 
     #[inline]
-    #[allow(clippy::too_many_arguments)]
     fn cfr_traversal_static(
         strategy: &Strategy,
         state: &GameState,
-        hands: &[[Card; 2]],
-        board_sets: &BoardSets,
+        deal: &DealContext,
         player: Player,
         pi_reach: f64,
         pi_neg_reach: f64,
         iter_weight: f64,
-        sorted_holes: &[[Card; 2]],
     ) -> f64 {
         if state.is_terminal() {
-            return Self::get_utility_impl(state, hands, board_sets, player);
+            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, player);
         }
 
         if pi_reach < CFR_PRUNE_THRESHOLD && pi_neg_reach < CFR_PRUNE_THRESHOLD {
@@ -398,13 +409,13 @@ impl CFRSolver {
         let actions = state.legal_actions();
 
         if actions.is_empty() {
-            return Self::get_utility_impl(state, hands, board_sets, player);
+            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, player);
         }
 
         let current = state.current_player;
 
-        let board_set = board_sets.get(state.street);
-        let sorted_hole = &sorted_holes[current.index()];
+        let board_set = deal.board_sets.get(state.street);
+        let sorted_hole = &deal.sorted_holes[current.index()];
 
         let info_set = InfoSet::from_cards_with_history(
             current,
@@ -426,25 +437,21 @@ impl CFRSolver {
                 Self::cfr_traversal_static(
                     strategy,
                     &new_state,
-                    hands,
-                    board_sets,
+                    deal,
                     player,
                     pi_reach * strat[i],
                     pi_neg_reach,
                     iter_weight,
-                    sorted_holes,
                 )
             } else {
                 Self::cfr_traversal_static(
                     strategy,
                     &new_state,
-                    hands,
-                    board_sets,
+                    deal,
                     player,
                     pi_reach,
                     pi_neg_reach * strat[i],
                     iter_weight,
-                    sorted_holes,
                 )
             };
 
@@ -497,16 +504,13 @@ impl CFRSolver {
                     [hole_cards[2], hole_cards[3]],
                 ];
                 let board = deck.deal_into::<5>();
-                let board_sets = BoardSets::from_board(&board);
+                let deal = DealContext::new(hands, &board);
 
                 let mut br_sum = 0.0f64;
-                let mut sorted_hands = hands;
-                sorted_hands[0].sort_unstable();
-                sorted_hands[1].sort_unstable();
                 for &player in &Player::ALL {
                     let state = GameState::new(config);
                     br_sum +=
-                        Self::best_response_traversal(&strategy, &state, &hands, &board_sets, player, &sorted_hands);
+                        Self::best_response_traversal(&strategy, &state, &deal, player);
                 }
                 br_sum
             })
@@ -516,28 +520,25 @@ impl CFRSolver {
     }
 
     #[inline]
-    #[allow(clippy::too_many_arguments)]
     fn best_response_traversal(
         strategy: &Strategy,
         state: &GameState,
-        hands: &[[Card; 2]],
-        board_sets: &BoardSets,
+        deal: &DealContext,
         br_player: Player,
-        sorted_holes: &[[Card; 2]],
     ) -> f64 {
         if state.is_terminal() {
-            return Self::get_utility_impl(state, hands, board_sets, br_player);
+            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, br_player);
         }
 
         let actions = state.legal_actions();
         if actions.is_empty() {
-            return Self::get_utility_impl(state, hands, board_sets, br_player);
+            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, br_player);
         }
 
         let current = state.current_player;
 
-        let board_set = board_sets.get(state.street);
-        let sorted_hole = &sorted_holes[current.index()];
+        let board_set = deal.board_sets.get(state.street);
+        let sorted_hole = &deal.sorted_holes[current.index()];
 
         let info_set = InfoSet::from_cards_with_history(
             current,
@@ -552,7 +553,7 @@ impl CFRSolver {
             for &action in &actions {
                 let new_state = state.apply_action(action);
                 let value =
-                    Self::best_response_traversal(strategy, &new_state, hands, board_sets, br_player, sorted_holes);
+                    Self::best_response_traversal(strategy, &new_state, deal, br_player);
                 if value > best_value {
                     best_value = value;
                 }
@@ -570,7 +571,7 @@ impl CFRSolver {
             for (i, &action) in actions.iter().enumerate() {
                 let new_state = state.apply_action(action);
                 let value =
-                    Self::best_response_traversal(strategy, &new_state, hands, board_sets, br_player, sorted_holes);
+                    Self::best_response_traversal(strategy, &new_state, deal, br_player);
                 node_value = strat[i].mul_add(value, node_value);
             }
             node_value

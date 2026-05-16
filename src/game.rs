@@ -627,68 +627,115 @@ impl GameState {
             len += 1;
 
             if !opponent_all_in {
-                for &frac in BET_FRACTIONS {
-                    // Use u128 intermediate to prevent overflow when pot * frac
-                    // exceeds u64::MAX (possible with extreme stack sizes).
-                    #[allow(clippy::cast_lossless)]
-                    let bet_size = ((u128::from(self.pot) * u128::from(frac) / u128::from(BET_DENOM))
-                        .min(u128::from(remaining))) as u64;
-                    if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
-                        let action = Action::Bet(bet_size);
-                        if !actions[..len].contains(&action) {
-                            actions[len] = action;
-                            len += 1;
-                        }
-                    }
-                }
+                len = self.append_bet_sizes(remaining, &mut actions, len);
             }
         } else if to_call <= remaining {
             actions[len] = Action::Call;
             len += 1;
 
             if !opponent_all_in {
-                for &frac in RAISE_FRACTIONS {
-                    // Use u128 intermediate to prevent overflow when pot * frac
-                    // exceeds u64::MAX (possible with extreme stack sizes).
-                    #[allow(clippy::cast_lossless)]
-                    let pot_frac = (u128::from(self.pot) * u128::from(frac) / u128::from(RAISE_DENOM)) as u64;
-                    let raise_over_call = pot_frac
-                        .max(self.min_raise)
-                        .min(remaining - to_call);
-                    if raise_over_call >= self.min_raise
-                        && len < MAX_ACTIONS - 1
-                    {
-                        let action = Action::Raise(raise_over_call);
-                        if !actions[..len].contains(&action) {
-                            actions[len] = action;
-                            len += 1;
-                        }
-                    }
-                }
+                len = self.append_raise_sizes(to_call, remaining, &mut actions, len);
             }
         }
 
         if remaining > 0 {
-            // Skip AllIn when it would be identical to an existing action:
-            // - opponent is all-in and Call suffices (to_call < remaining)
-            // - to_call == remaining (AllIn ≡ Call, avoid duplicate branch)
-            let skip_all_in = opponent_all_in && to_call < remaining
-                || to_call == remaining;
-            if !skip_all_in {
-                let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
-                    || (to_call < remaining
-                        && actions[..len].contains(&Action::Raise(remaining - to_call)));
-                if !all_in_dup {
-                    actions[len] = Action::AllIn;
-                    len += 1;
-                }
-            }
+            len = self.append_all_in(to_call, remaining, opponent_all_in, &mut actions, len);
         }
 
         LegalActions {
             actions,
             len: len as u8,
         }
+    }
+
+    /// Appends pot-fraction bet sizes to the actions array.
+    ///
+    /// Generates bets at 1/3-pot, 2/3-pot, and full pot, each clamped to
+    /// `[min_bet, remaining]`. Duplicate sizes are suppressed.
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
+    fn append_bet_sizes(&self, remaining: u64, actions: &mut [Action], len: usize) -> usize {
+        let mut len = len;
+        for &frac in BET_FRACTIONS {
+            // Use u128 intermediate to prevent overflow when pot * frac
+            // exceeds u64::MAX (possible with extreme stack sizes).
+            #[allow(clippy::cast_lossless)]
+            let bet_size = ((u128::from(self.pot) * u128::from(frac) / u128::from(BET_DENOM))
+                .min(u128::from(remaining))) as u64;
+            if bet_size >= self.config.min_bet && len < MAX_ACTIONS - 1 {
+                let action = Action::Bet(bet_size);
+                if !actions[..len].contains(&action) {
+                    actions[len] = action;
+                    len += 1;
+                }
+            }
+        }
+        len
+    }
+
+    /// Appends pot-fraction raise sizes to the actions array.
+    ///
+    /// Generates raises at 1/2-pot and full pot *over the call amount*,
+    /// each clamped to `[min_raise, remaining - to_call]`.
+    /// Duplicate sizes are suppressed.
+    #[inline]
+    #[allow(clippy::cast_possible_truncation)]
+    fn append_raise_sizes(
+        &self,
+        to_call: u64,
+        remaining: u64,
+        actions: &mut [Action],
+        len: usize,
+    ) -> usize {
+        let mut len = len;
+        for &frac in RAISE_FRACTIONS {
+            // Use u128 intermediate to prevent overflow when pot * frac
+            // exceeds u64::MAX (possible with extreme stack sizes).
+            #[allow(clippy::cast_lossless)]
+            let pot_frac =
+                (u128::from(self.pot) * u128::from(frac) / u128::from(RAISE_DENOM)) as u64;
+            let raise_over_call = pot_frac.max(self.min_raise).min(remaining - to_call);
+            if raise_over_call >= self.min_raise && len < MAX_ACTIONS - 1 {
+                let action = Action::Raise(raise_over_call);
+                if !actions[..len].contains(&action) {
+                    actions[len] = action;
+                    len += 1;
+                }
+            }
+        }
+        len
+    }
+
+    /// Appends `AllIn` to the actions array, unless it would be redundant.
+    ///
+    /// `AllIn` is skipped when:
+    /// - It would be identical to Call (`to_call` == remaining)
+    /// - The opponent is all-in and a shorter call already suffices
+    /// - It duplicates an existing Bet or Raise of the same amount
+    #[inline]
+    #[allow(clippy::unused_self)]
+    fn append_all_in(
+        &self,
+        to_call: u64,
+        remaining: u64,
+        opponent_all_in: bool,
+        actions: &mut [Action],
+        len: usize,
+    ) -> usize {
+        let skip_all_in = opponent_all_in && to_call < remaining || to_call == remaining;
+        if skip_all_in {
+            return len;
+        }
+        let all_in_dup = actions[..len].contains(&Action::Bet(remaining))
+            || (to_call < remaining
+                && actions[..len].contains(&Action::Raise(remaining - to_call)));
+        if all_in_dup {
+            return len;
+        }
+        let mut len = len;
+        actions[len] = Action::AllIn;
+        len += 1;
+        len
     }
 
     /// Applies an action and returns the new game state.
@@ -748,12 +795,15 @@ impl GameState {
         new_state.history.push(action);
 
         if new_state.is_fold() {
+            // The folder's opponent (the winner) becomes current_player
+            // so that `winner()` returns the correct player.
             new_state.current_player = self.current_player.opponent();
         } else {
-            let both_all_in = new_state.is_player_all_in(Player::SB)
-                && new_state.is_player_all_in(Player::BB);
+            let sb_all_in = new_state.is_player_all_in(Player::SB);
+            let bb_all_in = new_state.is_player_all_in(Player::BB);
 
-            if both_all_in {
+            if sb_all_in && bb_all_in {
+                // Both players all-in: skip to showdown.
                 new_state.all_in_showdown = true;
             } else if new_state.betting_round_closed() && new_state.street != Street::River {
                 if let Some(next_street) = new_state.street.next() {
@@ -768,9 +818,7 @@ impl GameState {
                 // possible (opponent_all_in prevents bets/raises). Skip
                 // remaining streets and go straight to showdown, avoiding
                 // 6 pointless check-check actions across Flop/Turn/River.
-                let one_all_in = new_state.is_player_all_in(Player::SB)
-                    != new_state.is_player_all_in(Player::BB);
-                if one_all_in {
+                if sb_all_in != bb_all_in {
                     new_state.all_in_showdown = true;
                 }
             } else {

@@ -77,6 +77,13 @@ impl Hand {
         Self { rank }
     }
 
+    /// Computes the hand rank from a set of cards.
+    ///
+    /// # Precondition
+    ///
+    /// `cards` **must** be sorted in descending order by rank (highest first).
+    /// The flush and straight detectors rely on this ordering. The public
+    /// [`evaluate`](Self::evaluate) method handles sorting automatically.
     #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
         // Extract rank values once for counting (used by all rank-based detection).

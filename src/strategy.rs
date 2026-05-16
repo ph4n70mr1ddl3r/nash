@@ -1,5 +1,6 @@
 //! CFR strategy storage with concurrent `DashMap` access.
 
+use std::fmt;
 use std::path::Path;
 
 use dashmap::DashMap;
@@ -25,6 +26,13 @@ pub struct StrategyStats {
     pub info_sets: usize,
     /// Estimated memory usage in megabytes.
     pub memory_mb: u64,
+}
+
+impl fmt::Display for StrategyStats {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} info sets, {} MB", self.info_sets, self.memory_mb)
+    }
 }
 
 /// Errors that can occur when saving/loading strategies.

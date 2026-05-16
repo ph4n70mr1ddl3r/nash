@@ -157,10 +157,8 @@ impl CFRSolver {
                 {
                     let stats = self.strategy.stats();
                     info!(
-                        "Converged at iteration {iter} (exploitability {exploitability:.6} <= threshold {}, {} info sets, {} MB)",
+                        "Converged at iteration {iter} (exploitability {exploitability:.6} <= threshold {}, {stats})",
                         self.cfr_config.convergence_threshold,
-                        stats.info_sets,
-                        stats.memory_mb,
                     );
 
                     if let Some(ref path) = self.cfr_config.save_path {
@@ -181,13 +179,13 @@ impl CFRSolver {
 
                 if let Some(expl) = current_exploitability {
                     info!(
-                        "Iteration {}: {} info sets, {} MB, exploitability: {:.6}, elapsed: {:?}",
-                        iter, stats.info_sets, stats.memory_mb, expl, elapsed
+                        "Iteration {}: {stats}, exploitability: {expl:.6}, elapsed: {elapsed:?}",
+                        iter
                     );
                 } else {
                     info!(
-                        "Iteration {}: {} info sets, {} MB, elapsed: {:?}",
-                        iter, stats.info_sets, stats.memory_mb, elapsed
+                        "Iteration {}: {stats}, elapsed: {elapsed:?}",
+                        iter
                     );
                 }
             }

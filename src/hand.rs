@@ -79,71 +79,46 @@ impl Hand {
 
     #[inline]
     fn evaluate_hand_rank(cards: &[Card]) -> u32 {
-        if cards.len() < 5 {
-            // Flushes and straights require 5 cards, but pairs/trips/quads
-            // are still possible with fewer. Rank-count to detect them.
-            let mut ranks = [0u8; 7];
-            for (i, c) in cards.iter().enumerate() {
-                ranks[i] = c.rank();
-            }
-            let counts = Self::count_ranks(&ranks[..cards.len()]);
-
-            if let Some(rank) = Self::find_four_of_a_kind(&counts) {
-                let kicker = Self::best_kicker(&counts, &[rank]);
-                return Self::hand_rank(7, &[rank, kicker]);
-            }
-            if let Some((trips, pair)) = Self::find_full_house(&counts) {
-                return Self::hand_rank(6, &[trips, pair]);
-            }
-            if let Some(rank) = Self::find_three_of_a_kind(&counts) {
-                let kickers = Self::best_kickers_fixed::<2>(&counts, &[rank]);
-                return Self::hand_rank(3, &[rank, kickers[0], kickers[1]]);
-            }
-            if let Some((high, low)) = Self::find_two_pair(&counts) {
-                let kicker = Self::best_kicker(&counts, &[high, low]);
-                return Self::hand_rank(2, &[high, low, kicker]);
-            }
-            if let Some(rank) = Self::find_pair(&counts) {
-                let kickers = Self::best_kickers_fixed::<3>(&counts, &[rank]);
-                return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
-            }
-
-            let mut kickers = [0u8; 5];
-            for (i, c) in cards.iter().enumerate() {
-                kickers[i] = c.rank();
-            }
-            return Self::hand_rank(0, &kickers[..cards.len()]);
+        // Extract rank values once for counting (used by all rank-based detection).
+        let mut ranks = [0u8; 7];
+        for (i, c) in cards.iter().enumerate() {
+            ranks[i] = c.rank();
         }
-
-        let flush = Self::find_flush(cards);
-
-        if let Some((flush_cards, flush_len)) = &flush {
-            if let Some(sf_high) = Self::find_straight(&flush_cards[..*flush_len]) {
-                if sf_high == 14 {
-                    return Self::hand_rank(9, &[14]);
-                }
-                return Self::hand_rank(8, &[sf_high]);
-            }
-        }
-
-        let ranks: [u8; 7] = {
-            let mut arr = [0u8; 7];
-            for (i, c) in cards.iter().enumerate() {
-                arr[i] = c.rank();
-            }
-            arr
-        };
         let counts = Self::count_ranks(&ranks[..cards.len()]);
 
+        // Flush and straight detection requires 5+ cards. Pre-compute the
+        // flush result so it can be reused for both straight-flush and flush
+        // checks without recomputing.
+        let flush = if cards.len() >= 5 {
+            Self::find_flush(cards)
+        } else {
+            None
+        };
+
+        // Straight flush / royal flush (highest hand types).
+        if let Some((flush_cards, flush_len)) = &flush {
+            if let Some(sf_high) = Self::find_straight(&flush_cards[..*flush_len]) {
+                return if sf_high == 14 {
+                    Self::hand_rank(9, &[14])
+                } else {
+                    Self::hand_rank(8, &[sf_high])
+                };
+            }
+        }
+
+        // Four of a kind — possible with any number of cards (min 4).
         if let Some(rank) = Self::find_four_of_a_kind(&counts) {
             let kicker = Self::best_kicker(&counts, &[rank]);
             return Self::hand_rank(7, &[rank, kicker]);
         }
 
+        // Full house — possible with any number of cards (min 5, but
+        // detection is rank-based and harmless for fewer).
         if let Some((trips, pair)) = Self::find_full_house(&counts) {
             return Self::hand_rank(6, &[trips, pair]);
         }
 
+        // Flush (5+ cards only, using precomputed result).
         if let Some((flush_cards, flush_len)) = flush {
             let mut kickers = [0u8; 5];
             for (i, c) in flush_cards.iter().take(flush_len.min(5)).enumerate() {
@@ -152,11 +127,15 @@ impl Hand {
             return Self::hand_rank(5, &kickers);
         }
 
-        let straight = Self::find_straight(cards);
-        if let Some(high) = straight {
-            return Self::hand_rank(4, &[high]);
+        // Straight (5+ cards only).
+        if cards.len() >= 5 {
+            if let Some(high) = Self::find_straight(cards) {
+                return Self::hand_rank(4, &[high]);
+            }
         }
 
+        // Three of a kind through high card — rank-based detection
+        // works with any number of cards.
         if let Some(rank) = Self::find_three_of_a_kind(&counts) {
             let kickers = Self::best_kickers_fixed::<2>(&counts, &[rank]);
             return Self::hand_rank(3, &[rank, kickers[0], kickers[1]]);
@@ -172,11 +151,12 @@ impl Hand {
             return Self::hand_rank(1, &[rank, kickers[0], kickers[1], kickers[2]]);
         }
 
+        // High card — cards are sorted descending, so first N are kickers.
         let mut kickers = [0u8; 5];
         for (i, c) in cards.iter().take(5).enumerate() {
             kickers[i] = c.rank();
         }
-        Self::hand_rank(0, &kickers)
+        Self::hand_rank(0, &kickers[..cards.len().min(5)])
     }
 
     #[inline]

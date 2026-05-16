@@ -585,6 +585,21 @@ impl GameState {
         }
     }
 
+    /// Returns the remaining stack for a player (chips not yet committed).
+    #[must_use]
+    #[inline]
+    pub const fn remaining_stack(&self, player: Player) -> u64 {
+        self.config.initial_stacks[player.index()]
+            .saturating_sub(self.committed[player.index()])
+    }
+
+    /// Returns `true` if the player has committed their entire stack (all-in).
+    #[must_use]
+    #[inline]
+    pub const fn is_player_all_in(&self, player: Player) -> bool {
+        self.committed[player.index()] >= self.config.initial_stacks[player.index()]
+    }
+
     /// Returns the legal actions for the current player (stack-allocated).
     #[inline]
     #[must_use]
@@ -592,8 +607,7 @@ impl GameState {
     pub fn legal_actions(&self) -> LegalActions {
         let mut actions = [Action::Fold; MAX_ACTIONS];
 
-        let remaining = self.config.initial_stacks[self.current_player.index()]
-            .saturating_sub(self.committed[self.current_player.index()]);
+        let remaining = self.remaining_stack(self.current_player);
 
         // An all-in player (remaining == 0) cannot fold — they've already
         // committed their entire stack. Only offer Check in that case.
@@ -606,8 +620,7 @@ impl GameState {
         // When the opponent is all-in, only offer fold/call/short-all-in.
         // Bets and raises are pointless (no one to respond) and create
         // invalid game tree branches in the CFR solver.
-        let opponent_all_in = self.committed[self.current_player.opponent().index()]
-            >= self.config.initial_stacks[self.current_player.opponent().index()];
+        let opponent_all_in = self.is_player_all_in(self.current_player.opponent());
 
         if to_call == 0 {
             actions[len] = Action::Check;
@@ -718,8 +731,7 @@ impl GameState {
                 new_state.min_raise = amount;
             }
             Action::AllIn => {
-                let remaining = self.config.initial_stacks[self.current_player.index()]
-                    .saturating_sub(self.committed[self.current_player.index()]);
+                let remaining = self.remaining_stack(self.current_player);
                 let to_call = self
                     .last_bet
                     .saturating_sub(self.committed[self.current_player.index()]);
@@ -738,8 +750,8 @@ impl GameState {
         if new_state.is_fold() {
             new_state.current_player = self.current_player.opponent();
         } else {
-            let both_all_in = new_state.committed[0] >= new_state.config.initial_stacks[0]
-                && new_state.committed[1] >= new_state.config.initial_stacks[1];
+            let both_all_in = new_state.is_player_all_in(Player::SB)
+                && new_state.is_player_all_in(Player::BB);
 
             if both_all_in {
                 new_state.all_in_showdown = true;
@@ -756,11 +768,8 @@ impl GameState {
                 // possible (opponent_all_in prevents bets/raises). Skip
                 // remaining streets and go straight to showdown, avoiding
                 // 6 pointless check-check actions across Flop/Turn/River.
-                let sb_all_in = new_state.committed[0]
-                    >= new_state.config.initial_stacks[0];
-                let bb_all_in = new_state.committed[1]
-                    >= new_state.config.initial_stacks[1];
-                let one_all_in = sb_all_in != bb_all_in;
+                let one_all_in = new_state.is_player_all_in(Player::SB)
+                    != new_state.is_player_all_in(Player::BB);
                 if one_all_in {
                     new_state.all_in_showdown = true;
                 }

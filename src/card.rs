@@ -134,10 +134,19 @@ pub struct CardSet {
 impl<'de> Deserialize<'de> for CardSet {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let helper = CardSetHelper::deserialize(deserializer)?;
-        let len = helper.len.min(5);
+        let len = helper.len.min(5) as usize;
+        for card in &helper.cards[..len] {
+            if !card.is_valid() {
+                return Err(serde::de::Error::custom(format!(
+                    "invalid card in CardSet: rank={} suit={}",
+                    card.rank, card.suit
+                )));
+            }
+        }
         Ok(Self {
             cards: helper.cards,
-            len,
+            #[allow(clippy::cast_possible_truncation)]
+            len: len as u8,
         })
     }
 }

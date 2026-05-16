@@ -122,6 +122,20 @@ impl Street {
             Self::River => None,
         }
     }
+
+    /// Returns the zero-based ordinal for this street (Preflop=0 … River=3).
+    ///
+    /// Useful for indexing into street-indexed arrays (e.g. [`BoardSets`](crate::solver::BoardSets)).
+    #[must_use]
+    #[inline]
+    pub const fn ordinal(self) -> usize {
+        match self {
+            Self::Preflop => 0,
+            Self::Flop => 1,
+            Self::Turn => 2,
+            Self::River => 3,
+        }
+    }
 }
 
 impl fmt::Display for Street {
@@ -848,8 +862,14 @@ impl fmt::Display for GameState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} {} pot:{} committed:[{},{}] actions:{{",
-            self.street, self.current_player, self.pot, self.committed[0], self.committed[1]
+            "{} {} pot:{} committed:[{},{}] remaining:[{},{}] actions:{{",
+            self.street,
+            self.current_player,
+            self.pot,
+            self.committed[0],
+            self.committed[1],
+            self.remaining_stack(Player::SB),
+            self.remaining_stack(Player::BB),
         )?;
         for (i, action) in self.history.iter().enumerate() {
             if i > 0 {

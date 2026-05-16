@@ -37,14 +37,16 @@ const CFR_PRUNE_THRESHOLD: f64 = 1e-10;
 
 /// Immutable per-deal context shared across CFR and best-response traversals.
 ///
-/// Groups the data that is fixed for a single card deal (hole cards, board,
-/// sorted holes for info-set construction) so that traversal functions take
-/// a single `&DealContext` instead of four separate parameters.
+/// Groups the data that is fixed for a single card deal (hole cards, board)
+/// so that traversal functions take a single `&DealContext` instead of
+/// multiple separate parameters.
+///
+/// Hole cards are stored in canonical (sorted) order. The original deal order
+/// is irrelevant because [`Hand::evaluate`] sorts internally.
 #[derive(Debug, Clone)]
 struct DealContext {
-    hands: [[Card; 2]; 2],
+    holes: [[Card; 2]; 2],
     board_sets: BoardSets,
-    sorted_holes: [[Card; 2]; 2],
 }
 
 /// Precomputed board card sets indexed by street ordinal.
@@ -66,13 +68,7 @@ impl BoardSets {
 
     #[inline]
     const fn get(&self, street: Street) -> &CardSet {
-        let idx = match street {
-            Street::Preflop => 0,
-            Street::Flop => 1,
-            Street::Turn => 2,
-            Street::River => 3,
-        };
-        &self.0[idx]
+        &self.0[street.ordinal()]
     }
 }
 
@@ -84,14 +80,10 @@ impl DealContext {
     #[inline]
     fn new(hands: [[Card; 2]; 2], board: &[Card]) -> Self {
         let board_sets = BoardSets::from_board(board);
-        let mut sorted_holes = hands;
-        sorted_holes[0].sort_unstable();
-        sorted_holes[1].sort_unstable();
-        Self {
-            hands,
-            board_sets,
-            sorted_holes,
-        }
+        let mut holes = hands;
+        holes[0].sort_unstable();
+        holes[1].sort_unstable();
+        Self { holes, board_sets }
     }
 }
 
@@ -400,7 +392,7 @@ impl CFRSolver {
         iter_weight: f64,
     ) -> f64 {
         if state.is_terminal() {
-            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, player);
+            return Self::get_utility_impl(state, &deal.holes, &deal.board_sets, player);
         }
 
         if pi_reach < CFR_PRUNE_THRESHOLD && pi_neg_reach < CFR_PRUNE_THRESHOLD {
@@ -410,18 +402,18 @@ impl CFRSolver {
         let actions = state.legal_actions();
 
         if actions.is_empty() {
-            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, player);
+            return Self::get_utility_impl(state, &deal.holes, &deal.board_sets, player);
         }
 
         let current = state.current_player;
 
         let board_set = deal.board_sets.get(state.street);
-        let sorted_hole = &deal.sorted_holes[current.index()];
+        let hole = &deal.holes[current.index()];
 
         let info_set = InfoSet::from_cards_with_history(
             current,
             state.street,
-            sorted_hole,
+            hole,
             board_set.clone(),
             state.history.clone(),
         );
@@ -528,23 +520,23 @@ impl CFRSolver {
         br_player: Player,
     ) -> f64 {
         if state.is_terminal() {
-            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, br_player);
+            return Self::get_utility_impl(state, &deal.holes, &deal.board_sets, br_player);
         }
 
         let actions = state.legal_actions();
         if actions.is_empty() {
-            return Self::get_utility_impl(state, &deal.hands, &deal.board_sets, br_player);
+            return Self::get_utility_impl(state, &deal.holes, &deal.board_sets, br_player);
         }
 
         let current = state.current_player;
 
         let board_set = deal.board_sets.get(state.street);
-        let sorted_hole = &deal.sorted_holes[current.index()];
+        let hole = &deal.holes[current.index()];
 
         let info_set = InfoSet::from_cards_with_history(
             current,
             state.street,
-            sorted_hole,
+            hole,
             board_set.clone(),
             state.history.clone(),
         );

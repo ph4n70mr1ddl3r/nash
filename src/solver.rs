@@ -75,15 +75,16 @@ impl BoardSets {
 impl DealContext {
     /// Builds a deal context from hole cards and the full 5-card board.
     ///
-    /// Hole cards are sorted into canonical order for consistent info-set
-    /// construction during CFR traversal.
+    /// Hole cards are stored in their original deal order. Canonical
+    /// ordering is applied in [`InfoSet::from_cards_with_history`] at
+    /// info-set construction time, so sorting here would be redundant.
     #[inline]
     fn new(hands: [[Card; 2]; 2], board: &[Card]) -> Self {
         let board_sets = BoardSets::from_board(board);
-        let mut holes = hands;
-        holes[0].sort_unstable();
-        holes[1].sort_unstable();
-        Self { holes, board_sets }
+        Self {
+            holes: hands,
+            board_sets,
+        }
     }
 }
 
@@ -184,13 +185,7 @@ impl CFRSolver {
                         self.cfr_config.convergence_threshold,
                     );
 
-                    if let Some(ref path) = self.cfr_config.save_path {
-                        if let Err(e) = self.strategy.save(path) {
-                            warn!("Failed to save strategy: {}", e);
-                        } else {
-                            info!("Saved strategy to {}", path);
-                        }
-                    }
+                    self.save_strategy("converged");
                     converged_early = true;
                     break;
                 }
@@ -213,17 +208,11 @@ impl CFRSolver {
                 }
             }
 
-            if let Some(ref path) = self.cfr_config.save_path {
-                if self.cfr_config.save_interval > 0
-                    && iter < self.cfr_config.num_iterations
-                    && iter % self.cfr_config.save_interval == 0
-                {
-                    if let Err(e) = self.strategy.save(path) {
-                        warn!("Failed to save strategy: {}", e);
-                    } else {
-                        info!("Saved strategy to {}", path);
-                    }
-                }
+            if self.cfr_config.save_interval > 0
+                && iter < self.cfr_config.num_iterations
+                && iter % self.cfr_config.save_interval == 0
+            {
+                self.save_strategy("checkpoint");
             }
         }
 
@@ -231,17 +220,25 @@ impl CFRSolver {
         // on the last iteration. The final strategy is the best one.
         // Skip if convergence already saved it.
         if !converged_early {
-            if let Some(ref path) = self.cfr_config.save_path {
-                if let Err(e) = self.strategy.save(path) {
-                    warn!("Failed to save final strategy: {}", e);
-                } else {
-                    info!("Saved final strategy to {}", path);
-                }
-            }
+            self.save_strategy("final");
         }
 
         let total = start.elapsed();
         info!("CFR+ completed in {:?}", total);
+    }
+
+    /// Saves the strategy to the configured path with a contextual label.
+    ///
+    /// Logs success or failure using the given `reason` (e.g. "checkpoint",
+    /// "converged", "final") for traceability.
+    fn save_strategy(&self, reason: &str) {
+        if let Some(ref path) = self.cfr_config.save_path {
+            if let Err(e) = self.strategy.save(path) {
+                warn!("Failed to save {reason} strategy: {e}");
+            } else {
+                info!("Saved {reason} strategy to {path}");
+            }
+        }
     }
 
     fn run_iteration(&self, iter_weight: f64) {

@@ -326,8 +326,6 @@ impl Strategy {
     /// The strategy is serialized using postcard for efficient storage.
     /// Uses atomic rename-from-temp to avoid leaving a corrupt file on
     /// partial write or serialization failure.
-    /// Note: This collects all entries into memory before serialization,
-    /// which may be memory-intensive for very large strategies.
     ///
     /// # Errors
     ///
